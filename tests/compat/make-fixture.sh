@@ -81,7 +81,7 @@ INSERT INTO fanfiction_authors (uid, penname, realname, email, bio, image, date,
 INSERT INTO fanfiction_authorprefs (uid, userskin, level) VALUES (10, 'default', 0), (11, 'default', 0), (12, 'default', 0);
 INSERT INTO fanfiction_stories (sid, title, summary, storynotes, catid, classes, charid, rid, date, updated, uid, coauthors, featured, validated, completed, rr, wordcount, rating, reviews, count) VALUES
  (1, 'Fixture Story', 'A preserved fixture story.', '', '0', '0', '0', '1', NOW(), NOW(), 10, '0', '0', '1', '0', '0', 8, 0, 0, 0),
- (2, 'Unvalidated Fixture Story', 'A story only its author, the coauthor, and admins may read.', '', '0', '0', '0', '1', NOW(), NOW(), 10, '0', '0', '0', '0', '0', 8, 0, 0, 0);
+ (2, 'Unvalidated Fixture Story', 'A story only its author, the coauthor, and admins may read.', '', '0', '0', '0', '1', NOW(), NOW(), 10, '1', '0', '0', '0', '0', 8, 0, 0, 0);
 INSERT INTO fanfiction_chapters (chapid, title, inorder, notes, storytext, endnotes, validated, wordcount, rating, reviews, sid, uid, count) VALUES
  (1, 'Chapter One', 1, '', '', '', '1', 8, 0, 0, 1, 10, 0),
  (2, 'Hidden Chapter', 1, '', '', '', '0', 8, 0, 0, 2, 10, 0);

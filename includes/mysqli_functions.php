@@ -9,7 +9,10 @@ function dbconnect($dbhost, $dbuser, $dbpass, $dbname ) {
 		include(_BASEDIR."languages/en.php"); // Because we haven't got a language set yet.
 		die(_FATALERROR." "._NOTCONNECTED);
 	}
-	mysqli_query($mysql_access, "SET SESSION sql_mode = 'MYSQL40'");
+	// Maintenance fork: upstream set SESSION sql_mode = 'MYSQL40' here to
+	// recreate pre-4.1 behavior. MySQL 8.0 and current MariaDB removed that
+	// mode, so the statement failed every connection. The server default
+	// mode is kept; no permissive global mode is set instead.
 	return $mysql_access;
 }
 
@@ -17,7 +20,16 @@ function dbconnect($dbhost, $dbuser, $dbpass, $dbname ) {
 function dbquery($query) {
 	global $debug, $headerSent, $dbconnect;
 	if($debug && $headerSent) echo "<!-- $query -->\n";
-	$result = $dbconnect->query($query) or accessDenied( _FATALERROR.(isADMIN ? "Query: ".$query."<br />Error: (".$dbconnect->mysqli_errno.") ".$dbconnect->mysqli_error : ""));
+	// Maintenance fork: since PHP 8.1 mysqli throws mysqli_sql_exception by
+	// default, which bypassed the old "or accessDenied(...)" guard and could
+	// surface the query text in a fatal error page. Failures now go through
+	// accessDenied: guests see the generic message, admins see the query.
+	try {
+		$result = $dbconnect->query($query);
+	} catch (mysqli_sql_exception $e) {
+		accessDenied( _FATALERROR.(defined("isADMIN") && isADMIN ? "Query: ".$query."<br />Error: ".$e->getMessage() : ""));
+		exit( );
+	}
 	return $result;
 }
 

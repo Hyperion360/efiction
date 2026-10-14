@@ -22,7 +22,6 @@
 
 // Force the argument separator to be standards compliant
 @ ini_set('arg_separator.output','&amp;'); 
-if(isset($_GET['debug'])) @ error_reporting(E_ALL);
 if(isset($_GET['benchmark'])) {
 	list($usec, $sec) = explode(" ", microtime());
 	$start = ((float)$usec + (float)$sec);
@@ -85,7 +84,6 @@ foreach($settings as $var => $val) {
 	$settings[$var] = htmlspecialchars($val);
 }
 
-if(isset($_GET['debug'])) $debug = 1;
 if(!$displaycolumns) $displaycolumns = 1; // shouldn't happen, but just in case.
 if($words) $words = explode(", ", $words);
 else $words = array( );
@@ -127,6 +125,13 @@ if(isset($PHP_SELF)) $PHP_SELF = htmlspecialchars(descript($PHP_SELF), ENT_QUOTE
 $agecontsent = false; $viewed = false; 
 
 require_once("includes/get_session_vars.php");
+
+// Maintenance fork: ?debug is admin only. Query dumps in HTML comments and
+// full error reporting must never be reachable by guests.
+if(isset($_GET['debug']) && defined("isADMIN") && isADMIN) {
+	$debug = 1;
+	error_reporting(E_ALL);
+}
 
 if(isset($_GET['skin'])) {
 	$siteskin = $_GET['skin'];

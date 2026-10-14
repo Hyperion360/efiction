@@ -34,6 +34,22 @@ if(empty($chapter)) $chapter = isset($_GET['chapter']) && isNumber($_GET['chapte
 	// Get the story information
 	$storyquery = dbquery("SELECT "._PENNAMEFIELD." as penname, "._UIDFIELD." as uid, story.*, UNIX_TIMESTAMP(story.date) as date, UNIX_TIMESTAMP(story.updated) as updated, story.validated as valid FROM ".TABLEPREFIX."fanfiction_stories as story, "._AUTHORTABLE." WHERE story.sid = '".$sid."' AND story.uid = "._UIDFIELD);
 	$storyinfo = dbassoc($storyquery);
+	//  Check that the story is valid and that the visitor has permissions to read this story
+	$warning = "";
+	if(!$storyinfo) {
+		// Maintenance fork: the old code dereferenced the missing row in the
+		// checks below, so a nonexistent story id rendered a page full of
+		// PHP warnings. It now goes straight to the invalid-story page,
+		// before any coauthor expansion or rating lookup.
+		$current = "storyerror";
+		if(file_exists("$skindir/default.tpl")) $tpl = new TemplatePower( "$skindir/default.tpl" );
+		else $tpl = new TemplatePower("default_tpls/default.tpl");
+		include("includes/pagesetup.php");
+		$tpl->assign("output", write_error(_INVALIDSTORY));
+		$tpl->printToScreen( );
+		dbclose( );
+		exit( );
+	}
 	if($storyinfo['coauthors'] == 1) {
 		$coauthors = array();
 		$coauth = dbquery("SELECT "._PENNAMEFIELD." as penname, co.uid FROM ".TABLEPREFIX."fanfiction_coauthors AS co LEFT JOIN "._AUTHORTABLE." ON co.uid = "._UIDFIELD." WHERE co.sid = '".$sid."'");
@@ -44,10 +60,13 @@ if(empty($chapter)) $chapter = isset($_GET['chapter']) && isNumber($_GET['chapte
 		unset($coauthors);
 	}
 	else $storyinfo['coauthors'] = array();
-	//  Check that the story is valid and that the visitor has permissions to read this story
-	$warning = "";
-	if(!$storyinfo) $warning = _INVALIDSTORY;
-	if(!$storyinfo['valid'] && !isADMIN && ($storyinfo['uid'] != USERUID || !in_array(USERUID, $storyinfo['coauthors']))) $warning = _ACCESSDENIED;
+	// Maintenance fork: the old condition denied everyone but admins unless
+	// the reader was both the owner AND a member of the coauthor PENNAME
+	// values, so owners lost their own unpublished stories and coauthors
+	// never had access. The coauthor array is keyed by uid; test the keys.
+	$isOwner = (int) $storyinfo['uid'] === (int) USERUID;
+	$isCoauthor = array_key_exists((int) USERUID, $storyinfo['coauthors']);
+	if(!$storyinfo['valid'] && !isADMIN && !$isOwner && !$isCoauthor) $warning = _ACCESSDENIED;
 	$ratingquery = dbquery("SELECT ratingwarning, warningtext FROM ".TABLEPREFIX."fanfiction_ratings WHERE rid = '".$storyinfo['rid']."' LIMIT 1");
 	$rating = dbassoc($ratingquery);
 	$warninglevel = sprintf("%03b", $rating['ratingwarning']);
@@ -134,7 +153,8 @@ if($action == "printable") {
 		$chapterinfo = dbquery("SELECT *, "._PENNAMEFIELD." as penname FROM (".TABLEPREFIX."fanfiction_chapters as c, "._AUTHORTABLE.") WHERE sid = '$sid' AND inorder = '$chapter' AND c.uid = "._UIDFIELD." LIMIT 1");
 		$c = dbassoc($chapterinfo);
 		// if the *CHAPTER* hasn't been validated and the viewer isn't an admin or the author throw them a warning.  
-		if(empty($c['validated']) && !isADMIN && USERUID != $c['uid'] && !in_array(USERUID, $stories['coauthors'])) {
+		// Maintenance fork: the coauthor array is keyed by uid, so test the key instead of the penname values.
+		if(empty($c['validated']) && !isADMIN && (int) USERUID !== (int) $c['uid'] && !array_key_exists((int) USERUID, $stories['coauthors'])) {
 			$warning = write_error(_ACCESSDENIED);
 			$tpl->assign("archivedat", $warning);
 			$tpl->printToScreen( );
@@ -304,8 +324,14 @@ else {
 		$printicon = "<a href=\"viewstory.php?action=printable&amp;sid=$sid&amp;textsize=$textsize&amp;chapter=1\" target=\"_blank\"><img src='".(isset($printer) ? $priner : "images/print.gif")."' border='0' alt='"._PRINTER."'></a>";
 	}
 	// if the *CHAPTER* hasn't been validated and the viewer isn't an admin or the author throw them a warning.  
-	if(!$valid && !isADMIN && USERUID != $chapterauthor && !in_array($chapterauthor, $storyinfo['coauthors'])) {
-		$warning = accessDenied( );
+	// Maintenance fork: the coauthor array is keyed by uid; the old check
+	// searched the penname values for the chapter author, so coauthors were
+	// denied the unvalidated chapters of their own stories.
+	if(!$valid && !isADMIN && (int) USERUID !== (int) $chapterauthor && !array_key_exists((int) USERUID, $storyinfo['coauthors'])) {
+		$tpl->assign("output", write_error(_ACCESSDENIED));
+		$tpl->printToScreen( );
+		dbclose( );
+		exit( );
 	}
 	$stories = $storyinfo;
 	$tpl->gotoBlock("_ROOT");

@@ -343,6 +343,9 @@ else {
 	// okay now that we know they can see the story and the chapter add 1 to the story and chapter counts;
 	if(empty($viewed) || (is_array($viewed) && !in_array($sid, $viewed))) {
 		dbquery("UPDATE ".TABLEPREFIX."fanfiction_stories SET count = count + 1 WHERE sid = '$sid'  LIMIT 1");
+		// Maintenance fork (PHP 8.1+): $viewed can arrive as false from the
+		// session; the append then hit the deprecated false-to-array path.
+		$viewed = (array) $viewed;
 		$viewed[] = $sid;
 		$_SESSION['viewed'] = $viewed;
 	}

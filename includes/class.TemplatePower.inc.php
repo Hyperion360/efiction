@@ -38,6 +38,12 @@ define("T_BYFILE", 0);
 define("T_BYVAR", 1);
 define("TP_ROOTBLOCK", '_ROOT');
 
+// Maintenance fork (PHP 8.2+): the engine builds block properties such as
+// tpl_rawContentN on the instance at runtime. Declared properties would be
+// a rewrite; this opt-in keeps the engine's behavior identical and removes
+// the dynamic property deprecation on PHP 8.2 and later. The attribute is
+// inherited by the TemplatePower subclass.
+#[\AllowDynamicProperties]
 class TemplatePowerParser
 {
   protected $tpl_base;              //Array( [filename/varcontent], [T_BYFILE/T_BYVAR] )

@@ -73,7 +73,11 @@ function preview_story($stories) {
 	$count = 0;
 	if(file_exists("$skindir/listings.tpl")) $tpl = new TemplatePower( "$skindir/listings.tpl" );
 	else $tpl = new TemplatePower("default_tpls/listings.tpl");
-	if(count($stories['coauthors']) > 0) $stories['coauthors'] = 1;
+	// Maintenance fork (PHP 8+): $stories['coauthors'] is the DB value ('0',
+	// '1') or an array when the caller already expanded it. PHP 5's count()
+	// returned 1 for any scalar; count() on a scalar is a TypeError on
+	// PHP 8. Same outcome as upstream: a scalar always counts as one.
+	if(!is_array($stories['coauthors']) || count($stories['coauthors']) > 0) $stories['coauthors'] = 1;
 	$tpl->prepare( );
 	$tpl->newBlock("listings");
 	$tpl->newBlock("storyblock");

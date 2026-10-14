@@ -1,0 +1,13 @@
+# Maintenance fork: config.php holds database credentials and must never be
+# served. Under normal PHP handling a direct request executes it and returns
+# nothing; this rule also covers the case where PHP handling is broken and
+# the file would otherwise be delivered as text. Apache 2.2 and 2.4 syntax.
+<Files "config.php">
+	<IfModule mod_authz_core.c>
+		Require all denied
+	</IfModule>
+	<IfModule !mod_authz_core.c>
+		Order allow,deny
+		Deny from all
+	</IfModule>
+</Files>

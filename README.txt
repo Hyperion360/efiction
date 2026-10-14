@@ -38,7 +38,7 @@ Note: You're encouraged to choose one of the skins provided with the 3.0
 script until you can update your 1.1 skins.  There are numerous changes in the
 skins from 1.1 to 3.0.  
 
-Note 2: Make sure your config.php file is CHMOD'd to 666.
+Note 2: The maintenance installer creates config.php for you with safe permissions. Do not make config.php world writable.
 
 Upgrading from v.2.0.X:
 
@@ -49,7 +49,7 @@ The script will detect that the config.php file is for 2.0 and start the upgrade
 Note: You're encouraged to choose one of the skins provided with the 3.0 
 script until you can update your 2.0 skins.
 
-Note 2: Make sure your config.php file is CHMOD'd to 666.
+Note 2: The maintenance installer creates config.php for you with safe permissions. Do not make config.php world writable.
 
 Note 3: If you have installed blocks that did not come with the 2.0 package, 
 turn them off before starting the upgrade.  They will most likely be
@@ -73,7 +73,7 @@ no clue what you're doing, just go to http://www.yoursite.com/ after uploading
 all the files to your server.
 
 1) If you intend to write the story texts to the server or allow image uploads, you
-must create a folder where these files will be stored. CHMOD this folder to 777.  
+must create a folder where these files will be stored. Normal owner writable permissions (755) are enough; do not make the folder world writable (777).
 During installation, the script will ask you for the location of this folder.  
 If this folder is missing the script will attempt to create it for you during the 
 install, but it is best if you create the folder yourself before beginning the
@@ -84,7 +84,7 @@ placed in the docs folder to help prevent accidental overwriting of config.php
 for upgrades. If the config.php is missing the install script will attempt to 
 create it, but it's best if you move it.
 
-3) CHMOD config.php to 666.  
+3) Do not CHMOD anything to 666 or 777. The maintenance installer writes config.php itself (see docs/COMPATIBILITY.md for the installer owner secret step).
 
 4) Go to http://www.yoursite.com/ to run the install and set up the admin login.
 

@@ -57,8 +57,12 @@ if(ini_get('register_globals')) {
 
 Header('Cache-Control: private, no-cache, must-revalidate, max_age=0, post-check=0, pre-check=0');
 header ("Pragma: no-cache"); 
-header ("Expires: 0"); 
-header("Content-Type: text/html; charset="._CHARSET);
+header ("Expires: 0");
+// Maintenance fork (PHP 8.3+): the Content-Type header moved below the
+// language include. _CHARSET is defined by the language file; upstream read
+// it before that include, which was a silent notice on PHP 5 and is a fatal
+// on PHP 8. No output happens before either line, so the sent headers are
+// identical.
 
 // Locate config.php and set the basedir path
 $folder_level = "";
@@ -80,8 +84,10 @@ unset($settings['tableprefix']);
 define("STORIESPATH", $settings['storiespath']);
 unset($settings['storiespath']);
 foreach($settings as $var => $val) {
-	$$var = stripslashes($val);
-	$settings[$var] = htmlspecialchars($val);
+	// Maintenance fork (PHP 8.1+): nullable settings columns (words, smtp_*)
+	// arrive as NULL here; upstream PHP 5 treated them as empty strings.
+	$$var = stripslashes((string) $val);
+	$settings[$var] = htmlspecialchars((string) $val);
 }
 
 if(!$displaycolumns) $displaycolumns = 1; // shouldn't happen, but just in case.
@@ -97,6 +103,7 @@ else $action = false;
 
 if(file_exists(_BASEDIR."languages/{$language}.php")) include (_BASEDIR."languages/{$language}.php");
 else include (_BASEDIR."languages/en.php");
+header("Content-Type: text/html; charset="._CHARSET);
 
 include_once(_BASEDIR."includes/queries.php");
 include_once(_BASEDIR."includes/corefunctions.php");
@@ -162,8 +169,14 @@ if($maintenance && !isADMIN && basename($_SERVER['PHP_SELF']) != "maintenance.ph
 }
 
 $blockquery = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_blocks");
+// Maintenance fork (PHP 8.1+): $blocks was never initialized; the first
+// write auto-vivified it and PHP 8.1+ deprecates the false-to-array path.
+$blocks = array( );
 while($block = dbassoc($blockquery)) {
-	$blocks[$block['block_name']] = unserialize($block['block_variables']);
+	// Maintenance fork (PHP 8.1+): empty block_variables unserialize to
+	// false; the second-level writes then hit the deprecated false-to-array
+	// conversion. An empty block definition behaves as no variables.
+	$blocks[$block['block_name']] = (array) unserialize((string) $block['block_variables']);
 	$blocks[$block['block_name']]['title'] = $block['block_title'];
 	$blocks[$block['block_name']]['file'] = $block['block_file'];
 	$blocks[$block['block_name']]['status'] = $block['block_status'];

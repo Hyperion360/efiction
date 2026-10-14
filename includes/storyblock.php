@@ -22,6 +22,11 @@
 // ----------------------------------------------------------------------
 
 if(!defined("_CHARSET")) exit( );
+	// Maintenance fork (PHP 8.1+): blocks include this partial once per story
+	// row. With no story selected (empty archive, random story block) $stories
+	// is null and every read below warned on PHP 8; render nothing, which is
+	// what upstream produced on PHP 5 (empty template variables).
+	if(empty($stories) || !is_array($stories)) return;
 	if(!isset($count)) $count = 0;
 	$tpl->assign("sid", $stories['sid']);
 	unset($challengelinks, $challengeadmin, $serieslinks, $categorylinks, $adminlinks, $authlink);

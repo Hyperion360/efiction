@@ -1,0 +1,10 @@
+<?php
+$dbhost = "%%DBHOST%%";
+$dbname = "%%DBNAME%%";
+$dbuser = "%%DBUSER%%";
+$dbpass = "%%DBPASS%%";
+$sitekey = "fixture355key";
+$settingsprefix = "";
+
+include_once("includes/dbfunctions.php");
+if(!empty($sitekey)) $dbconnect = dbconnect($dbhost, $dbuser, $dbpass, $dbname);

@@ -55,6 +55,159 @@ if(ini_get("magic_quotes_gpc")) {
 
 define("_BASEDIR", "../");
 
+// ---------------------------------------------------------------------
+// Maintenance fork installer gate.
+//
+// Every mutating installer action requires, in the POST body, a one time
+// 64 hex character owner secret stored in a private file OUTSIDE the HTTP
+// document root plus a session bound CSRF token. GET requests render
+// status and forms only. Normal setup is denied once config.php exists.
+// A separate recovery action may reset only a marker verified, content
+// free partial install, after saving file and database backups.
+// ---------------------------------------------------------------------
+
+define("EF_INSTALL_TOKEN_FILE", "efiction-install-token.txt");
+define("EF_INSTALL_STATE_FILE", "efiction-install-state.json");
+
+function ef_webroot() {
+	// The resolved document root. Never derived from a request parameter.
+	$docroot = isset($_SERVER["DOCUMENT_ROOT"]) ? realpath($_SERVER["DOCUMENT_ROOT"]) : false;
+	if($docroot === false) $docroot = realpath(dirname(__DIR__));
+	return $docroot;
+}
+
+function ef_private_dir() {
+	// The parent of the resolved document root.
+	return dirname(ef_webroot());
+}
+
+function ef_token_path() { return ef_private_dir() . "/" . EF_INSTALL_TOKEN_FILE; }
+function ef_state_path() { return ef_private_dir() . "/" . EF_INSTALL_STATE_FILE; }
+function ef_config_path() { return dirname(__DIR__) . "/config.php"; }
+
+function ef_read_token() {
+	$path = ef_token_path();
+	if(!is_readable($path)) return false;
+	$token = trim((string) file_get_contents($path));
+	return preg_match("/^[0-9a-f]{64}$/", $token) ? $token : false;
+}
+
+function ef_session() {
+	if(session_status() !== PHP_SESSION_ACTIVE) @session_start();
+}
+
+function ef_csrf_token() {
+	ef_session();
+	if(empty($_SESSION["ef_install_csrf"])) $_SESSION["ef_install_csrf"] = bin2hex(random_bytes(32));
+	return $_SESSION["ef_install_csrf"];
+}
+
+// The owner secret must be presented in the POST body on every mutating step.
+function ef_secret_ok() {
+	$token = ef_read_token();
+	if($token === false) return false;
+	$given = isset($_POST["install_secret"]) ? (string) $_POST["install_secret"] : "";
+	return $given !== "" && hash_equals($token, $given);
+}
+
+function ef_csrf_ok() {
+	ef_session();
+	return isset($_POST["csrf"], $_SESSION["ef_install_csrf"])
+		&& hash_equals($_SESSION["ef_install_csrf"], (string) $_POST["csrf"]);
+}
+
+// A present Origin header must match the installer host. Supplement to the
+// session CSRF token against cross site requests.
+function ef_origin_ok() {
+	if(!isset($_SERVER["HTTP_ORIGIN"])) return true;
+	$host = isset($_SERVER["HTTP_HOST"]) ? (string) $_SERVER["HTTP_HOST"] : "";
+	if($host === "") return false;
+	$parts = @parse_url((string) $_SERVER["HTTP_ORIGIN"]);
+	if(empty($parts["host"])) return false;
+	$origin = $parts["host"].(isset($parts["port"]) ? ":".$parts["port"] : "");
+	return strcasecmp($origin, $host) === 0;
+}
+
+function ef_mutation_allowed() { return ef_secret_ok() && ef_csrf_ok() && ef_origin_ok(); }
+
+// Hidden fields added to every installer form: the session CSRF token and,
+// once the owner has presented the secret in this session, the secret value
+// itself so each mutating POST carries both. Anonymous sessions get neither.
+function ef_hidden_inputs() {
+	ef_session();
+	$hidden = "<input type='hidden' name='csrf' value='".htmlspecialchars(ef_csrf_token(), ENT_QUOTES, 'UTF-8')."'>";
+	if(!empty($_SESSION["ef_install_authenticated"]) && ($token = ef_read_token()) !== false) {
+		$hidden .= "<input type='hidden' name='install_secret' value='".htmlspecialchars($token, ENT_QUOTES, 'UTF-8')."'>";
+	}
+	return $hidden;
+}
+
+// Visible secret input for the first request of a session (the owner copies
+// the value from the private token file). Empty once authenticated.
+function ef_secret_field() {
+	ef_session();
+	if(!empty($_SESSION["ef_install_authenticated"])) return "";
+	return "<div class='row'><label for='install_secret'>Installer secret:</label> <input type='password' name='install_secret' id='install_secret' value=''></div>";
+}
+
+// Automatic/manual chooser as POST forms. GET requests never mutate.
+function ef_choice_forms($step) {
+	return "<div style='text-align: center; margin: 1em;'>"
+		."<form method='POST' action='install.php?step=".$step."' style='display: inline;'>".ef_hidden_inputs()
+		."<input type='hidden' name='install' value='automatic'><input type='submit' class='button' value='"._AUTO."'></form> "
+		._OR." "
+		."<form method='POST' action='install.php?step=".$step."' style='display: inline;'>".ef_hidden_inputs()
+		."<input type='hidden' name='install' value='manual'><input type='submit' class='button' value='"._MANUAL2."'></form></div>";
+}
+
+function ef_deny($reason) {
+	global $output;
+	http_response_code(403);
+	$output .= "<div style='width: 60%; margin: 1em auto;'>".write_error($reason)."</div>";
+}
+
+function ef_locked_message() {
+	return write_error("The installer is locked. The owner secret file (".EF_INSTALL_TOKEN_FILE.") must exist in the private directory above the web root, as described in docs/COMPATIBILITY.md, before any installation step can run.");
+}
+
+function ef_state_read() {
+	$path = ef_state_path();
+	if(!is_readable($path)) return false;
+	$data = json_decode((string) file_get_contents($path), true);
+	return is_array($data) && isset($data["config_sha256"]) ? $data : false;
+}
+
+function ef_state_write($config_sha256) {
+	$path = ef_state_path();
+	$json = json_encode(array("config_sha256" => $config_sha256, "created" => gmdate("c")));
+	return $json !== false && file_put_contents($path, $json, LOCK_EX) !== false;
+}
+
+function ef_cleanup_install_files() {
+	@unlink(ef_token_path());
+	@unlink(ef_state_path());
+	ef_session();
+	unset($_SESSION["ef_install_csrf"], $_SESSION["ef_install_authenticated"]);
+}
+
+// A partial install may only be reset when no admin, story, chapter,
+// message, news, or review rows exist.
+function ef_content_tables_empty($tableprefix) {
+	foreach(array("fanfiction_authors", "fanfiction_stories", "fanfiction_chapters", "fanfiction_messages", "fanfiction_news", "fanfiction_reviews") as $tbl) {
+		$exists = dbquery("SHOW TABLES LIKE '".$tableprefix.$tbl."'");
+		if(dbnumrows($exists)) {
+			list($count) = dbrow(dbquery("SELECT COUNT(*) FROM `".$tableprefix.$tbl."`"));
+			if((int) $count > 0) return false;
+		}
+	}
+	return true;
+}
+
+ef_session();
+$ef_config_exists = file_exists(ef_config_path());
+$ef_token_present = ef_read_token() !== false;
+$ef_action = isset($_POST["ef_action"]) ? (string) $_POST["ef_action"] : "";
+
 Header('Cache-Control: private, no-cache, must-revalidate, max_age=0, post-check=0, pre-check=0');
 header ("Pragma: no-cache"); 
 header ("Expires: 0"); 
@@ -62,6 +215,42 @@ header ("Expires: 0");
 $output = "";
 
 include ("../includes/class.TemplatePower.inc.php");
+
+// Maintenance fork (PHP 8.3+): the language files interpolate settings
+// variables at include time (email signatures, allowed tag list, word count
+// limits). During a fresh install no settings row exists yet, so define the
+// same defaults the settings table would give. The config branch below
+// overwrites them with the loaded settings where one exists.
+if(!isset($url)) $url = "";
+if(!isset($sitename)) $sitename = "";
+if(!isset($s)) $s = "";
+if(!isset($d)) $d = "";
+if(!isset($action)) $action = false;
+if(!isset($allowed_tags)) $allowed_tags = "";
+if(!isset($minwords)) $minwords = 0;
+if(!isset($maxwords)) $maxwords = 0;
+if(!isset($recentdays)) $recentdays = 7;
+if(!isset($pwdsetting)) $pwdsetting = 0;
+if(!isset($imagewidth)) $imagewidth = 200;
+if(!isset($imageheight)) $imageheight = 200;
+if(!isset($multiplecats)) $multiplecats = 0;
+if(!isset($language)) $language = "en";
+// en_admin.php interpolates $version while it is included below, but
+// version.php cannot be executed yet (it exits without _CHARSET, which the
+// language files define). Read the version string out of version.php
+// instead of duplicating it here; the executed include further down still
+// sets the real variable.
+$version = preg_match('/\$version\s*=\s*"([^"]+)"/', (string) file_get_contents(dirname(__DIR__)."/version.php"), $ef_vermatch) ? $ef_vermatch[1] : "";
+
+// Maintenance fork: the settings prefix and the table prefix are
+// interpolated into SQL identifiers and LIKE patterns throughout the
+// installer. A prefix containing quotes or dashes can never be a valid
+// identifier and only builds broken statements, so reduce it to the empty
+// prefix. The installer writes the prefix itself in step 1, so a value that
+// fails this check is a corrupted config, not a real archive.
+function ef_sql_prefix($value) {
+	return preg_match("/^[A-Za-z0-9_]*$/", (string) $value) ? (string) $value : "";
+}
 
 if(!isset($_GET['step']) || $_GET['step'] == 2) {
 	include ("../languages/en.php");
@@ -79,11 +268,22 @@ else if(isset($_REQUEST['language'])) {
 }
 else {
 include("../config.php");
+$settingsprefix = ef_sql_prefix(isset($settingsprefix) ? $settingsprefix : "");
 $dbconnect = dbconnect($dbhost, $dbuser, $dbpass, $dbname );
-$settings = dbquery("SELECT tableprefix, language FROM ".$settingsprefix."fanfiction_settings WHERE sitekey = '".$sitekey."'");
-list($tableprefix, $language) = dbrow($settings);
-define("TABLEPREFIX", $tableprefix);
-define("SITEKEY", $sitekey);
+// Maintenance fork: a partial install has a config.php but no settings
+// table yet (config written, tables not created). Querying the missing
+// table failed and the wrapper routes failures to accessDenied(), which
+// the installer has not loaded at this point. Fall back to the default
+// language instead.
+$ef_settings_exists = dbquery("SHOW TABLES LIKE '".$settingsprefix."fanfiction_settings'");
+if(dbnumrows($ef_settings_exists)) {
+	$settings = dbquery("SELECT tableprefix, language FROM ".$settingsprefix."fanfiction_settings WHERE sitekey = '".$sitekey."'");
+	list($tableprefix, $language) = dbrow($settings);
+	$tableprefix = ef_sql_prefix($tableprefix);
+	define("TABLEPREFIX", $tableprefix);
+	define("SITEKEY", $sitekey);
+}
+else $language = "en";
 if(file_exists("../languages/".$language.".php")) include ("../languages/".$language.".php");
 else include ("../languages/en.php");
 if(file_exists("../languages/".$language."_admin.php")) include("../languages/".$language."_admin.php");
@@ -94,6 +294,8 @@ else include ("languages/en.php");
 include(_BASEDIR."includes/corefunctions.php");
 
 //  So I don't have to keep updating the version number in 3 different files.
+// Included after the language files so _CHARSET is defined (version.php
+// exits without it) and before any output that names the version.
 include("../version.php");
 
 //make a new TemplatePower object
@@ -146,14 +348,82 @@ $tpl->newBlock("footer");
 $tpl->assign( "footer", "eFiction $version &copy; 2007. <a href='http://efiction.org/'>http://efiction.org/</a>");
 $tpl->gotoBlock( "_ROOT" );
 
-switch($_GET['step']) {
+$ef_step = isset($_GET['step']) ? (string) $_GET['step'] : "1";
+
+if($ef_action === "recover") {
+	// Separate recovery action: resets only a marker verified, content free
+	// partial install, after saving file and database backups.
+	if(!$ef_config_exists || !ef_mutation_allowed()) {
+		ef_deny("Recovery denied. The owner secret, the session CSRF token, an existing config.php, and a matching install state marker are all required.");
+	} else {
+		include("../config.php");
+		$settingsprefix = ef_sql_prefix(isset($settingsprefix) ? $settingsprefix : "");
+		$state = ef_state_read();
+		$actual = hash_file("sha256", ef_config_path());
+		if(!$state || !is_string($actual) || !hash_equals($state["config_sha256"], $actual)) {
+			ef_deny("Recovery denied. The install state marker is missing or does not match the existing config.php. This is an uncertain state; restore from your own backup instead.");
+		} else {
+			// Maintenance fork: a partial install stopped after step 1 has a
+			// config.php but no settings table yet; the settings query would
+			// fail and abort the recovery. No settings table means no
+			// configured prefix, so scan with the empty prefix.
+			$settings_exists = dbquery("SHOW TABLES LIKE '".$settingsprefix."fanfiction_settings'");
+			if(dbnumrows($settings_exists)) {
+				$settingsresults = dbquery("SELECT tableprefix FROM ".$settingsprefix."fanfiction_settings WHERE sitekey = '".$sitekey."'");
+				list($tableprefix) = dbrow($settingsresults);
+				$tableprefix = ef_sql_prefix($tableprefix);
+				define("TABLEPREFIX", $tableprefix);
+			}
+			else $tableprefix = "";
+			if(!ef_content_tables_empty($tableprefix)) {
+				ef_deny("Recovery denied. The archive already contains admin, story, chapter, message, news, or review rows. Resetting is only available for empty partial installs; restore from your backup instead.");
+			} else {
+				$backupdir = ef_private_dir() . "/efiction-install-backup-" . gmdate("Ymd-His");
+				$backupok = @mkdir($backupdir, 0700, true) && @copy(ef_config_path(), $backupdir."/config.php");
+				$dump = "# eFiction maintenance fork pre-recovery database backup\n";
+				$tables = dbquery("SHOW TABLES");
+				while($tables && ($trow = dbrow($tables))) {
+					$t = $trow[0];
+					$create = dbrow(dbquery("SHOW CREATE TABLE `".$t."`"));
+					$dump .= "\nDROP TABLE IF EXISTS `".$t."`;\n".(isset($create[1]) ? $create[1] : "").";\n";
+					$rows = dbquery("SELECT * FROM `".$t."`");
+					while($row = dbassoc($rows)) {
+						$values = array( );
+						foreach($row as $v) { $values[] = $v === null ? "NULL" : "'".$dbconnect->real_escape_string($v)."'"; }
+						$dump .= "INSERT INTO `".$t."` VALUES (".implode(", ", $values).");\n";
+					}
+				}
+				if(file_put_contents($backupdir."/db-backup.sql", $dump) !== false) $backupok = $backupok && true;
+				@unlink(ef_config_path());
+				@unlink(ef_state_path());
+				$output .= "<div id='pagetitle'>Recovery complete</div>";
+				$output .= write_message("The partial install was backed up to ".$backupdir." (config.php and db-backup.sql".($backupok ? "" : ", NOTE: the backup may be incomplete").") and config.php was removed. Start a fresh installation from step 1. Delete the backup once the new installation is verified.");
+			}
+		}
+	}
+} else if(!$ef_token_present) {
+	// No owner secret file: the installer is fully disabled. GET and POST
+	// alike render status only.
+	$output .= "<div id='pagetitle'>Installer status</div>";
+	if($ef_config_exists) {
+		$output .= write_message("This archive is already configured. The installer is disabled and cannot change anything. Use the admin area of your site to make changes; never reinstall over an existing archive. The installer owner secret file was removed after installation, so recovery is not available; restore from your backup if this is not a completed install.");
+	} else {
+		$output .= ef_locked_message();
+		$output .= write_message("Create the file ".EF_INSTALL_TOKEN_FILE." in the private directory above your web root (the parent of ".ef_webroot()."), containing 64 random hex characters, then reload this page. See docs/COMPATIBILITY.md for the full procedure and an HTTP denial probe to confirm the location is not web readable.");
+	}
+} else
+	switch($ef_step) {
 	case "9":
-		if(isset($_POST['submit'])) {
+		if(isset($_POST['submit']) && !ef_mutation_allowed()) {
+			ef_deny("Installer authentication failed. The owner secret and session CSRF token are required to create the admin account.");
+		} else if(isset($_POST['submit'])) {
 			$penname = descript($_POST['newpenname']);
 			if((!$_POST['email']) && !isADMIN) $fail .= "<div style='text-align: center;'>"._EMAILREQUIRED." "._TRYAGAIN."</div>";
 			if($penname && !preg_match("!^[a-z0-9_ ]{3,30}$!i", $penname)) $fail = "<div style='text-align: center;'>"._BADUSERNAME." "._TRYAGAIN."</div>";
-			if(!preg_match("/^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9.-]+$/", $_POST[email])) $fail = "<div style='text-align: center;'>"._INVALIDEMAIL." "._TRYAGAIN."</div>";
-			if($_POST['password'] == $_POST['password2']) $encryptpassword = md5($_POST[password]);
+			// Maintenance fork (PHP 8.3+): the bare keys below are quoted.
+			// An undefined bare constant is a fatal on PHP 8.
+			if(!preg_match("/^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9.-]+$/", $_POST['email'])) $fail = "<div style='text-align: center;'>"._INVALIDEMAIL." "._TRYAGAIN."</div>";
+			if($_POST['password'] == $_POST['password2']) $encryptpassword = md5($_POST['password']);
 			else $fail =  write_message(_PASSWORDTWICE);
 			if(!isset($fail)) {
 				$result = dbquery("INSERT INTO ".$tableprefix."fanfiction_authors(`penname`, `email`, `password`, `date`) VALUES('$penname', '".$_POST['email']."', '$encryptpassword', now( ))");
@@ -161,14 +431,22 @@ switch($_GET['step']) {
 				$skinquery = dbquery("SELECT skin FROM ".$settingsprefix."fanfiction_settings WHERE sitekey = '".SITEKEY."'");
 				list($skin) = dbrow($skinquery);
 				$result2 = dbquery("INSERT INTO ".$tableprefix."fanfiction_authorprefs(`uid`, `userskin`, `level`) VALUES('".USERUID."', '$skin', '1')");
-				if($result && $result2) $output .= write_message(_ACTIONSUCCESSFUL."<br /><br />Installation complete!  <a href='../user.php?action=login'>Log in</a> to your site and go to the Admin area to configure your archive. <strong>Note:</strong> Please delete the install/ folder!");
+				if($result && $result2) {
+					// Installation complete: the installer is deactivated by
+					// removing the owner secret and state marker files.
+					ef_cleanup_install_files();
+					$output .= write_message(_ACTIONSUCCESSFUL."<br /><br />Installation complete!  <a href='../user.php?action=login'>Log in</a> to your site and go to the Admin area to configure your archive. The installer owner secret and state files were removed, so the installer is now deactivated. <strong>Note:</strong> Please delete the install/ folder!");
+				}
 			}
 			else $output .= $fail;
 		}
 		else {
-			$output .= "<div id='pagetitle'>"._ADMINACCT."</div><form method=\"POST\" class='tblborder' style='margin: 1em auto; width: 400px;' enctype=\"multipart/form-data\" action=\"install.php?step=9\">
-			<div class='row'><label for='newpenname'>"._PENNAME.":</label> <INPUT name=\"newpenname\" type=\"text\" class=\"textbox\" maxlength=\"200\" value=\"$user[penname]\"></div>
-		 	<div class='row'><label for='email'>"._EMAIL.":</label> <INPUT  type=\"text\" class=\"textbox=\" name=\"email\" value=\"$user[email]\" maxlength=\"200\"></div>
+			// Maintenance fork (PHP 8.3+): $user is never populated in the
+			// installer; the old $user[penname] interpolation warned about an
+			// undefined variable and a null array read on every PHP version.
+			$output .= "<div id='pagetitle'>"._ADMINACCT."</div><form method=\"POST\" class='tblborder' style='margin: 1em auto; width: 400px;' enctype=\"multipart/form-data\" action=\"install.php?step=9\">".ef_hidden_inputs().ef_secret_field()."
+			<div class='row'><label for='newpenname'>"._PENNAME.":</label> <INPUT name=\"newpenname\" type=\"text\" class=\"textbox\" maxlength=\"200\" value=\"\"></div>
+			<div class='row'><label for='email'>"._EMAIL.":</label> <INPUT  type=\"text\" class=\"textbox=\" name=\"email\" value=\"\" maxlength=\"200\"></div>
 			<div class='row'><label for='password'>"._PASSWORD.":</label>  <INPUT name=\"password\" class=\"textbox\" value=\"\" type=\"password\"></div> 
 			<div class='row'><label for='password2'>"._PASSWORD2.":</label> <INPUT name=\"password2\" class=\"textbox=\" value=\"\" type=\"password\"></div>
 			<div style='text-align: center;'><INPUT type=\"submit\"class=\"button\" name=\"submit\" value=\"submit\"></div></form>";	
@@ -177,8 +455,9 @@ switch($_GET['step']) {
 
 	case "8":
 		$output .= "<div id='pagetitle'>"._AUTHORFIELDS."</div>";
-		if(isset($_GET['install'])) {
-			if($_GET['install'] == "automatic") {
+		if(isset($_POST['install'])) {
+			if(!ef_mutation_allowed()) { ef_deny("Installer authentication failed. The owner secret and session CSRF token are required for this step.");  }
+			else if($_POST['install'] == "automatic") {
 				$fields[] = array('4','lj','Live Journal','http://{info}.livejournal.com','','','0');
 				$fields[] = array('1','website','Web Site','','','','1');
 				$fields[] = array('5','AOL','AIM','','$output .= "<div><label for=\'AOL\'>".$field[\'field_title\'].":</label><INPUT type=\'text\' class=\'textbox\'  name=\'af_".$field[\'field_name\']."\' maxlength=\'40\' value=\'".(!empty($user[\'af_\'.$field[\'field_id\']]) ? $user[\'af_\'.$field[\'field_id\']] : "")."\' size=\'20\'></div>";','$thisfield = "<img src=\"http://big.oscar.aol.com/".$field[\'info\']."?on_url=$url/images/aim.gif&off_url=$url/images/aim.gif\"> <a href=\"aim:goim?{aol}ScreenName=".$field[\'info\']."\">".format_email($field[\'info\'])."</a>";','1');
@@ -204,12 +483,13 @@ switch($_GET['step']) {
 				$output .= write_message(_FIELDMANUAL."<br /><br /><a href='install.php?step=9'>"._CONTINUE."</a>");
 			}
 		}
-		else $output .= write_message(_FIELDDATAINFO."<br /><br /><a href='install.php?step=8&amp;install=automatic'>"._AUTO."</a> "._OR." <a href='install.php?step=8&amp;install=manual'>"._MANUAL2."</a>");
+		else $output .= write_message(_FIELDDATAINFO).ef_choice_forms("8");
 	break;
 	case "7":
 		$output .= "<div id='pagetitle'>"._MESSAGEDATA."</div>";
-		if(isset($_GET['install'])) {
-			if($_GET['install'] == "automatic") {
+		if(isset($_POST['install'])) {
+			if(!ef_mutation_allowed()) { ef_deny("Installer authentication failed. The owner secret and session CSRF token are required for this step.");  }
+			else if($_POST['install'] == "automatic") {
 				$output .= "<table class='tblborder' style='margin: 1em auto; padding: 1em;' cellpadding='5'><tr><th>"._MESSAGE."</th><th>"._RESULT."</th></tr>";
 				$msg = dbquery("INSERT INTO `".$tableprefix."fanfiction_messages` VALUES (1, 'welcome', '', 'This is your welcome message. It appears on the index page. Include it in your .tpl files with {welcome}.');");
 				$output .= "<tr><td>Welcome</td><td align='center'>" . ($msg ? "<img src=\"../images/check.gif\">" : "<img src=\"../images/X.gif\">") ."</td></tr>";
@@ -236,13 +516,14 @@ switch($_GET['step']) {
 				$output .= write_message(_MESSAGEMANUAL."<br /><br /><a href='install.php?step=8'>"._CONTINUE."</a>");
 			}
 		}
-		else $output .= write_message(_MESSAGEDATANEW."<br /><br /><a href='install.php?step=7&amp;install=automatic'>"._AUTO."</a> "._OR." <a href='install.php?step=7&amp;install=manual'>"._MANUAL2."</a>");
+		else $output .= write_message(_MESSAGEDATANEW).ef_choice_forms("7");
 
 	break;
 	case "6":
 		$output .= "<div id='pagetitle'>"._BLOCKDATA."</div>";
-		if(isset($_GET['install'])) {
-			if($_GET['install'] == "automatic") {
+		if(isset($_POST['install'])) {
+			if(!ef_mutation_allowed()) { ef_deny("Installer authentication failed. The owner secret and session CSRF token are required for this step.");  }
+			else if($_POST['install'] == "automatic") {
 				$blocklist = array(
 					array("categories","Categories","categories/categories.php","1",""),
 					array("featured","Featured Stories","featured/featured.php","1",""),
@@ -266,12 +547,13 @@ switch($_GET['step']) {
 				$output .= write_message(_BLOCKDATAMANUAL."<br /><br /><a href='install.php?step=6'>"._CONTINUE."</a>");
 			}
 		}
-		else $output .= write_message(_BLOCKDATANEW."<br /><br /><a href='install.php?step=6&amp;install=automatic'>"._AUTO."</a> "._OR." <a href='install.php?step=6&amp;install=manual'>"._MANUAL2."</a>");
+		else $output .= write_message(_BLOCKDATANEW).ef_choice_forms("6");
 	break;
 	case "5":
 		$output .= "<div id='pagetitle'>"._LINKDATA."</div>";
-		if(isset($_GET['install'])) {
-			if($_GET['install'] == "automatic") {
+		if(isset($_POST['install'])) {
+			if(!ef_mutation_allowed()) { ef_deny("Installer authentication failed. The owner secret and session CSRF token are required for this step.");  }
+			else if($_POST['install'] == "automatic") {
 				$pagelist = array(
 					array("home","Home","index.php","0","0"),
 					array("recent","Most Recent","browse.php?type=recent","0","0"),
@@ -313,12 +595,13 @@ switch($_GET['step']) {
 				$output .= write_message(_LINKMANUAL."<br /><br /><a href='install.php?step=5'>"._CONTINUE."</a>");
 			}
 		}
-		else $output .= write_message(_LINKDATAINFO."<br /><br />"._LINKSETUP." <a href='install.php?step=5&amp;install=automatic'>"._AUTO."</a> "._OR." <a href='install.php?step=5&amp;install=manual'>"._MANUAL2."</a>");
+		else $output .= write_message(_LINKDATAINFO."<br /><br />"._LINKSETUP).ef_choice_forms("5");
 	break;
 	case "4":
 		$output .= "<div id='pagetitle'>"._PANELDATA."</div>";
-		if(isset($_GET['install'])){
-			if($_GET['install'] == "automatic") {
+		if(isset($_POST['install'])){
+			if(!ef_mutation_allowed()) { ef_deny("Installer authentication failed. The owner secret and session CSRF token are required for this step.");  }
+			else if($_POST['install'] == "automatic") {
 		
 				$panellist = array(
 					array("submitted","Submissions", "","3","5","0","A"),
@@ -412,12 +695,21 @@ switch($_GET['step']) {
 				$output .= write_message(_PANELMANUAL."<br /><br /><a href='install.php?step=5'>"._CONTINUE."</a>");
 			}
 		}
-		else $output .= write_message(_PANELDATAINFO."<br /><br />"._PANELSETUP." <a href='install.php?step=4&amp;install=automatic'>"._AUTO."</a> "._OR." <a href='install.php?step=4&amp;install=manual'>"._MANUAL2."</a>");
+		else $output .= write_message(_PANELDATAINFO."<br /><br />"._PANELSETUP).ef_choice_forms("4");
 	break;
 	case "3":
 		$output .= "<div id='pagetitle'>"._INSTALLTABLES."</div>";
-		if(isset($_GET['install'])) {
-			if($_GET['install'] == "automatic") {
+		if(isset($_POST['install'])) {
+			if(!ef_mutation_allowed()) { ef_deny("Installer authentication failed. The owner secret and session CSRF token are required for this step.");  }
+			else if($_POST['install'] == "automatic") {
+				// Maintenance fork: MySQL 8 enables NO_ZERO_DATE by default and
+				// rejects the zero-date defaults on four 3.5.5 tables (ERROR
+				// 1067, Invalid default value). The fork keeps the 3.5.5 schema
+				// byte identical, so the installer relaxes that single mode on
+				// its own connection while it creates the tables. This is not
+				// a global or persistent sql_mode change; MariaDB needs no
+				// adjustment.
+				dbquery("SET SESSION sql_mode = REPLACE(REPLACE(@@SESSION.sql_mode, 'NO_ZERO_DATE', ''), ',,', ',')");
 				$output .= "<table class='tblborder' style='margin: 1em auto; padding: 1em;' cellpadding='5'><tr><th>Table</th><th>"._RESULT."</th></tr>";
 				$authorfields = dbquery("CREATE TABLE IF NOT EXISTS `".$tableprefix."fanfiction_authorfields` (
   `field_id` int(11) NOT NULL AUTO_INCREMENT,
@@ -755,32 +1047,38 @@ $output .= "</table>";
 $output .= write_message(_TABLEFAILED."<br /><br /><a href='install.php?step=4'>"._CONTINUE."</a>");
 
 			}
-			else if($_GET['install'] == "manual") {
+			else if($_POST['install'] == "manual") {
 				$output .= write_message(_TABLESMANUAL."<br /><br /><a href='install.php?step=3'>"._CONTINUE."</a>");
 			}
 
 		}
 		else {
 	
-			$output .= write_message(_TABLESINSTALL."<br /><br /><a href='install.php?step=3&amp;install=automatic'>"._AUTO."</a> "._OR." <a href='install.php?step=3&amp;install=manual'>"._MANUAL2."</a>");
+			$output .= write_message(_TABLESINSTALL).ef_choice_forms("3");
 		}
 
 	break;
 
 	case "2";
 		include("../config.php");
+		$settingsprefix = ef_sql_prefix(isset($settingsprefix) ? $settingsprefix : "");
 		if(dbnumrows(dbquery("SHOW TABLES LIKE '".$settingsprefix."fanfiction_settings'"))) {
 			include("../config.php");
 			$dbconnect = dbconnect($dbhost, $dbuser, $dbpass, $dbname );
 			$settings = dbquery("SELECT tableprefix, language FROM ".$settingsprefix."fanfiction_settings WHERE sitekey = '".$sitekey."'");
 			list($tableprefix, $language) = dbrow($settings);
+			$tableprefix = ef_sql_prefix($tableprefix);
 			define("TABLEPREFIX", $tableprefix);
 			define("SITEKEY", $sitekey);
 			
 			$sect = isset($_GET['sect']) ? $_GET['sect'] : "main";
+			$ef_post_locked = isset($_POST['submit']) && !ef_mutation_allowed();
+			if($ef_post_locked) {
+				ef_deny("Installer authentication failed. The owner secret and session CSRF token are required to change settings during installation.");
+			}
 			$settingsresults = dbquery("SELECT * FROM ".$settingsprefix."fanfiction_settings WHERE sitekey = '".SITEKEY."'");
-			if(dbnumrows($settingsresults) == 0) {
-				dbquery("INSERT INTO ".$settingsprefix."fanfiction_settings (`sitekey`) VALUES('".SITEKEY."');");
+			if(dbnumrows($settingsresults) == 0 && ef_mutation_allowed()) {
+				dbquery("INSERT IGNORE INTO ".$settingsprefix."fanfiction_settings (`sitekey`) VALUES('".SITEKEY."');");
 				$settingsresults = dbquery("SELECT * FROM ".$settingsprefix."fanfiction_settings WHERE sitekey = '".SITEKEY."'");
 			}
 			$settings = dbassoc($settingsresults);
@@ -788,18 +1086,18 @@ $output .= write_message(_TABLEFAILED."<br /><br /><a href='install.php?step=4'>
 			foreach($settings as $var => $val) {
 				$$var = $val;
 			}
-			if($sect == "submissions") {
+			if(!$ef_post_locked && $sect == "submissions") {
 				if(isset($_POST['submit'])) {
 					$storiespath = descript($_POST['newstoriespath']);
 					if(!file_exists($storiespath) && !file_exists("../".$storiespath)) {
 						if(!strrchr($storiespath, "/") && !strrchr($storiespath, "\\")) $storiespath = "../$storiespath";
+						// Maintenance fork: normal owner writable mode; no world writable directories.
 						mkdir("$storiespath", 0755);
-						@chmod("$storiespath", 0777);
-						if(substr(sprintf('%o', @fileperms("../".$storiespath)), -4) != "0777") $output .= write_message(_STORIESPATHNOTWRITABLE);
+						if(!is_writable("../".$storiespath) && !is_writable($storiespath)) $output .= write_message(_STORIESPATHNOTWRITABLE);
 					}
 				}
 			}
-			if($sect == "email" && isset($_POST['submit'])) {
+			if(!$ef_post_locked && $sect == "email" && isset($_POST['submit'])) {
 				$output .= "<div id=\"pagetitle\">"._SETTINGS."</div>";
 				$smtp_host = $_POST['newsmtp_host'];
 				$smtp_username = $_POST['newsmtp_username'];
@@ -811,11 +1109,12 @@ $output .= write_message(_TABLEFAILED."<br /><br /><a href='install.php?step=4'>
 				}
 				else include("../admin/settings.php");
 			}
-			else include("../admin/settings.php");
+			else if(!$ef_post_locked) include("../admin/settings.php");
 		}
 		else {
-			if($_GET['install']) {
-				if($_GET['install'] == "automatic") {
+			if(isset($_POST['install'])) {
+				if(!ef_mutation_allowed()) { ef_deny("Installer authentication failed. The owner secret and session CSRF token are required for this step.");  }
+				else if($_POST['install'] == "automatic") {
 			
 								$settings = dbquery("CREATE TABLE IF NOT EXISTS `".$settingsprefix."fanfiction_settings` (
   `sitekey` varchar(50) NOT NULL default '1',
@@ -875,7 +1174,10 @@ $output .= write_message(_TABLEFAILED."<br /><br /><a href='install.php?step=4'>
   `smtp_password` varchar(50) default NULL,
   PRIMARY KEY  (`sitekey`)
 ) ENGINE=MyISAM;");
-if($settings) $output .= write_message("<img src=\"../images/check.gif\"> "._SETTINGSTABLESUCCESS." <br /><a href='install.php?step=2'>"._CONTINUE."</a>");
+if($settings) {
+						dbquery("INSERT IGNORE INTO ".$settingsprefix."fanfiction_settings (`sitekey`) VALUES('".$sitekey."');");
+						$output .= write_message("<img src=\"../images/check.gif\"> "._SETTINGSTABLESUCCESS." <br /><a href='install.php?step=2'>"._CONTINUE."</a>");
+					}
 else $output .= write_message(_SETTINGSTABLEAUTOFAIL."<br /><br /> <a href='install.php?step=2'>"._CONTINUE."</a>");
 				}
 				else {
@@ -886,68 +1188,84 @@ else $output .= write_message(_SETTINGSTABLEAUTOFAIL."<br /><br /> <a href='inst
 		
 				$test = dbquery("SHOW TABLES");
 				if(!$test) $output .= write_message(_CONFIGFAILED);
-				else $output .= write_message(_SETTINGSTABLESETUP." <a href='install.php?step=2&amp;install=automatic'>"._AUTO."</a> "._OR." <a href='install.php?step=2&amp;install=manual'>"._MANUAL2."</a>");
+				else $output .= write_message(_SETTINGSTABLESETUP).ef_choice_forms("2");
 			}
 		}
 	break;
 	default:
 		$output .= "<div id='pagetitle'>"._CONFIGDATA."</div>";
-		if(isset($_POST['submit'])) {
-			$dbhost = descript($_POST['dbhost']);
-			$dbname = descript($_POST['dbname']);
-			$dbuser = descript($_POST['dbuser']);
-			$dbpass = descript($_POST['dbpass']);
-			$language = $_POST['language'];
-			$sitekey = descript($_POST['sitekey']);
-			$settingsprefix = descript($_POST['settingsprefix']);
-			$mysql_access = mysqli_connect($dbhost, $dbuser, $dbpass);
-			if(!$mysql_access) {
-				$output .= write_message(_CONFIGFAILED);
-			}
-		}
-		if(isset($_POST['submit']) && $mysql_access) {
-			$handle = fopen("../config.php", 'w');
-			if(!$handle) {
-				@chmod("../config.php", 0666);
-				$handle = fopen("../config.php", 'w');
-			}
-			if($handle) {
-				$dbhost = descript($_POST['dbhost']);
-				$dbname = descript($_POST['dbname']);
-				$dbuser = descript($_POST['dbuser']);
-				$dbpass = descript($_POST['dbpass']);
-				$sitekey = descript($_POST['sitekey']);
+		if(isset($_POST['submit']) && $ef_config_exists) {
+			// Reinstallation is denied whenever config.php exists, even
+			// without an admin account. Recovery is the only way back.
+			ef_deny("config.php already exists. Reinstalling over an existing configuration is denied; use the recovery action only for an unfinished partial install.");
+		} else if(isset($_POST['submit']) && !ef_mutation_allowed()) {
+			ef_deny("Installer authentication failed. The owner secret and session CSRF token are required to write config.php.");
+		} else if(isset($_POST['submit'])) {
+				// Raw submitted values; var_export below writes them as
+				// safely quoted PHP string literals.
+				$dbhost = (string) $_POST['dbhost'];
+				$dbname = (string) $_POST['dbname'];
+				$dbuser = (string) $_POST['dbuser'];
+				$dbpass = (string) $_POST['dbpass'];
+				$language = preg_match("/^[a-z0-9_\-]{2,10}$/i", (string) $_POST['language']) ? $_POST['language'] : "en";
+				$sitekey = descript((string) $_POST['sitekey']);
+				$settingsprefix = descript((string) $_POST['settingsprefix']);
 				if(empty($sitekey)) $sitekey = random_string($randomcharset, 10);
-				$language = $_POST['language'];
-				$settingsprefix = descript($_POST['settingsprefix']);
-				$text = "<?php 
-\$dbhost = \"$dbhost\";
-\$dbname = \"$dbname\";
-\$dbuser= \"$dbuser\";
-\$dbpass = \"$dbpass\";
-\$sitekey = \"$sitekey\";
-\$settingsprefix = \"$settingsprefix\";
-
-include_once(\"includes/dbfunctions.php\");
-if(!empty(\$sitekey)) \$dbconnect = dbconnect(\$dbhost, \$dbuser,\$dbpass, \$dbname);
-
-?>";
-				fwrite($handle, $text);
-				fclose($handle);
-				@chmod("../config.php", 0644);
-				$output .= write_message(_CONFIGSUCCESS."<br /><br /><a href='install.php?step=2&amp;language=$language'>"._CONTINUE."</a>");
+				// Validate the credentials before writing anything.
+				try {
+					$probe = @new mysqli($dbhost, $dbuser, $dbpass, $dbname);
+					$probe->close();
+				} catch (mysqli_sql_exception $e) {
+					$probe = false;
+				}
+				if($probe === false) {
+					$output .= write_message(_CONFIGFAILED);
+				} else {
+					$config = "<?php\n"
+						. "\$dbhost = " . var_export($dbhost, true) . ";\n"
+						. "\$dbname = " . var_export($dbname, true) . ";\n"
+						. "\$dbuser = " . var_export($dbuser, true) . ";\n"
+						. "\$dbpass = " . var_export($dbpass, true) . ";\n"
+						. "\$sitekey = " . var_export($sitekey, true) . ";\n"
+						. "\$settingsprefix = " . var_export($settingsprefix, true) . ";\n"
+						. "include_once(\"includes/dbfunctions.php\");\n"
+						. "if(!empty(\$sitekey)) \$dbconnect = dbconnect(\$dbhost, \$dbuser, \$dbpass, \$dbname);\n";
+					// State marker first: the SHA-256 of the exact bytes about
+					// to be installed, then an atomic rename of config.php.
+					$config_sha256 = hash("sha256", $config);
+					$tmp = ef_config_path() . ".tmp-" . bin2hex(random_bytes(4));
+					if(!ef_state_write($config_sha256)) {
+						$output .= write_error("Could not write the install state marker in the private directory above the web root. config.php was not created. Check the directory permissions; see docs/COMPATIBILITY.md.");
+					} else if(file_put_contents($tmp, $config) === false || !rename($tmp, ef_config_path())) {
+						@unlink($tmp);
+						$output .= write_error(_ERROR_CONFIGWRITE);
+					} else {
+						// Least permissive working mode first; 0644 only when
+						// host ownership requires it.
+						@chmod(ef_config_path(), 0640);
+						if(!is_readable(ef_config_path())) @chmod(ef_config_path(), 0644);
+						ef_session();
+						$_SESSION["ef_install_authenticated"] = true;
+						$output .= write_message(_CONFIGSUCCESS."<br /><br /><a href='install.php?step=2&amp;language=".urlencode($language)."'>"._CONTINUE."</a>");
+					}
+				}
+			} else if($ef_config_exists) {
+			$output .= write_message("This archive is already configured. The installer cannot rewrite config.php. Never reinstall over an existing archive.");
+			$state = ef_state_read();
+			if($state !== false) {
+				$output .= "<form method='POST' action='install.php?step=1' class='tblborder' style='width: 60%; margin: 1em auto;'>".ef_hidden_inputs()
+					."<input type='hidden' name='ef_action' value='recover'>"
+					."<p>If this is an unfinished partial install with no admin account and no content, the owner may back it up and reset it. This requires the installer owner secret from ".EF_INSTALL_TOKEN_FILE.".</p>"
+					.ef_secret_field()
+					."<div style='text-align:center; margin:1em;'><input type='submit' class='button' value='Back up and reset partial install'></div></form>";
+			} else {
+				$output .= write_error("An install state marker does not exist for the current config.php. This is an uncertain state; the installer will not reset it. Restore from your own backup if needed.");
 			}
-			else $output .= write_message(_ERROR_CONFIGWRITE);
-
-		}
-		else { 
-			if(file_exists("../config.php") && !isset($mysql_access)) include("../config.php");
-			if(isset($tinyMCE)) $output .= write_message(_CONFIG2DETECTED);
-			else if(isset($sitename)) $output .= write_message(_CONFIG1DETECTED);
-			else {
-				$output .=  
-					"<form method='POST' enctype='multipart/form-data' action='install.php?step=1' class='tblborder' style='width: 350px; margin: 1em auto;'>
-						<div><label for='dbhost'>"._DBHOST."</label><input type='text'  name='dbhost' id='dbhost'".(!empty($dbhost) ? "value='$dbhost'" : "value='localhost'")."> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_DBHOST."</span></A></div>
+		} else {
+			$output .=
+				"<form method='POST' enctype='multipart/form-data' action='install.php?step=1' class='tblborder' style='width: 450px; margin: 1em auto;'>"
+				.ef_hidden_inputs().ef_secret_field()
+					."<div><label for='dbhost'>"._DBHOST."</label><input type='text'  name='dbhost' id='dbhost'".(!empty($dbhost) ? "value='$dbhost'" : "value='localhost'")."> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_DBHOST."</span></A></div>
 						<div><label for='dbname'>"._DBNAME."</label><input type='text' name='dbname' id='dbname'".(!empty($dbname) ? "value='$dbname'" : "")."> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_DBNAME."</span></A></div>
 						<div><label for='dbuser'>"._DBUSER."</label><input type='text' name='dbuser' id='dbuser'".(!empty($dbuser) ? "value='$dbuser'" : "")."> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_DBUSER."</span></A></div>
 						<div><label for='dbpass'>"._DBPASS."</label><input type='password' name='dbpass' id='dbpass'".(!empty($dbpass) ? "value='$dbpass'" : "")."> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_DBPASS."</span></A></div>
@@ -966,9 +1284,14 @@ if(!empty(\$sitekey)) \$dbconnect = dbconnect(\$dbhost, \$dbuser,\$dbpass, \$dbn
 						<label for='settingsprefix'>"._SETTINGSPREFIX."</label><input type='text' name='settingsprefix' id='settingsprefix'".(isset($settingsprefix) ? "value='$settingsprefix'" : "")."> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_SETTINGSPREFIX."</span></A><br />
 						<div style='text-align: center; margin: 1em;'><INPUT type=\"submit\"class=\"button\" name=\"submit\" value=\"submit\"></div>
 					</form>";
-			}
-		}	
+		}
 }
+// Maintenance fork: make sure every rendered form carries the session CSRF
+// token (and the owner secret for an authenticated session) so each mutating
+// POST passes the gate. Forms already built with ef_hidden_inputs() get a
+// duplicate hidden field with the same value, which is harmless.
+$output = preg_replace("/<form(\\s[^>]*)?>/i", "<form$1>".ef_hidden_inputs(), $output);
+
 $tpl->assign("output", $output);
 
 $tpl->printToScreen();

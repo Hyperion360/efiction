@@ -20,6 +20,13 @@
 // To read the license please visit http://www.gnu.org/copyleft/gpl.html
 // ----------------------------------------------------------------------
 
+// Maintenance fork: this legacy pre-3.0 database upgrader runs schema
+// changes without authentication. The fork upgrades only from a verified
+// eFiction 3.5.5 copy and performs no database changes, so the legacy
+// upgraders are disabled entirely. See docs/COMPATIBILITY.md and
+// docs/PROVENANCE.md.
+exit("This legacy upgrader is disabled in the eFiction maintenance fork. The fork upgrades only from eFiction 3.5.5 with no database changes; bring older archives to a verified eFiction 3.5.5 copy first.");
+
 function random_char($string)
 {
 	$length = strlen($string);

@@ -1,0 +1,130 @@
+# Compatibility gates for the eFiction maintenance fork.
+#
+# Matrix: PHP 8.3 and 8.4 against MySQL 8.0 and MariaDB 10.11. Each cell runs
+# the same gates the local release runs: full-tree lint, runtime probe,
+# database round trip, the browser-install and upgrade harnesses, and the
+# security role matrix. The packaging gate runs once per PHP version (it
+# needs no database).
+#
+# The Apache release gate (tests/compat/apache.sh) builds a container from
+# tests/compat/Dockerfile; GitHub-hosted runners can run it, but it needs the
+# built release ZIP and its own MariaDB service container, so it stays a
+# local release step (sh tests/compat/apache.sh fresh|upgrade).
+
+name: compatibility
+
+on:
+  push:
+    branches: [main, codex/php83-maintenance]
+  pull_request:
+
+jobs:
+  mysql:
+    name: PHP ${{ matrix.php }} / MySQL 8.0
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.3', '8.4']
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: efcipassword
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -pefcipassword"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+    env:
+      EF_DB_HOST: 127.0.0.1
+      EF_DB_ADMIN_USER: root
+      EF_DB_ADMIN_PASSWORD: efcipassword
+      PHP_BIN: php
+      MYSQL_BIN: mysql
+      MYSQLDUMP_BIN: mysqldump
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli
+      - name: Lint (full tree parses)
+        run: sh tests/compat/lint.sh
+      - name: Runtime probe
+        run: php -d zend.assertions=1 -d assert.exception=1 tests/compat/runtime.php
+      - name: Database round trip
+        run: php tests/compat/database.php
+        env:
+          EF_DB_NAME: efiction_test_ci
+      - name: Browser install (fresh)
+        run: sh tests/compat/http.sh fresh
+      - name: Browser install (upgrade from the 3.5.5 fixture)
+        run: sh tests/compat/http.sh upgrade
+      - name: Security role matrix
+        run: php tests/compat/security.php
+        env:
+          EF_DB_NAME: efiction_test_sec
+      - name: Packaging
+        run: sh tests/compat/package.sh
+
+  mariadb:
+    name: PHP ${{ matrix.php }} / MariaDB 10.11
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.3', '8.4']
+    services:
+      mariadb:
+        image: mariadb:10.11
+        env:
+          MARIADB_ROOT_PASSWORD: efcipassword
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mariadb-admin ping -pefcipassword"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=20
+    env:
+      EF_DB_HOST: 127.0.0.1
+      EF_DB_ADMIN_USER: root
+      EF_DB_ADMIN_PASSWORD: efcipassword
+      PHP_BIN: php
+      MYSQL_BIN: mariadb
+      MYSQLDUMP_BIN: mariadb-dump
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli
+      - name: Lint (full tree parses)
+        run: sh tests/compat/lint.sh
+      - name: Runtime probe
+        run: php -d zend.assertions=1 -d assert.exception=1 tests/compat/runtime.php
+      - name: Database round trip
+        run: php tests/compat/database.php
+        env:
+          EF_DB_NAME: efiction_test_ci
+      - name: Browser install (fresh)
+        run: sh tests/compat/http.sh fresh
+      - name: Browser install (upgrade from the 3.5.5 fixture)
+        run: sh tests/compat/http.sh upgrade
+      - name: Security role matrix
+        run: php tests/compat/security.php
+        env:
+          EF_DB_NAME: efiction_test_sec
+      - name: Documentation assertions
+        run: |
+          command -v rg >/dev/null 2>&1 || sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep
+          sh tests/compat/docs.sh
+      - name: Packaging
+        run: sh tests/compat/package.sh

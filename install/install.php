@@ -299,6 +299,10 @@ include(_BASEDIR."includes/corefunctions.php");
 include("../version.php");
 
 //make a new TemplatePower object
+// Maintenance fork: buffer the page so ef_deny() can still set a 403 status
+// after this early head output. The shared-host PHP default ships without
+// output buffering (the php -S development server buffers, which hid this).
+ob_start();
 echo "<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">
 <html><head><title>eFiction {$version} Install</title>
 <style>
@@ -1294,6 +1298,7 @@ $output = preg_replace("/<form(\\s[^>]*)?>/i", "<form$1>".ef_hidden_inputs(), $o
 
 $tpl->assign("output", $output);
 
+ob_end_flush();
 $tpl->printToScreen();
 if(isset($_GET['step']) && $_GET['step'] > 2) dbclose( );
 ?>

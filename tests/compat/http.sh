@@ -26,7 +26,9 @@ EF_DB_HOST="${EF_DB_HOST:-127.0.0.1}"
 # Nondefault engine port for local matrix runs; empty means the client default.
 EF_DB_PORT="${EF_DB_PORT:-}"
 # The installer's dbhost form value: mysqli accepts host:port notation.
-EF_INSTALL_DBHOST="${EF_DB_HOST}${EF_DB_PORT:+:$EF_DB_PORT}"
+# EF_INSTALL_DBHOST overrides it when the HTTP server sees the database under
+# a different name than the host-side mysql client (tests/compat/apache.sh).
+EF_INSTALL_DBHOST="${EF_INSTALL_DBHOST:-${EF_DB_HOST}${EF_DB_PORT:+:$EF_DB_PORT}}"
 EF_DB_ADMIN_PASSWORD="${EF_DB_ADMIN_PASSWORD:-}"
 PHP_BIN="${PHP_BIN:-php}"
 MYSQL_BIN="${MYSQL_BIN:-mysql}"
@@ -119,7 +121,9 @@ table_count() {
 
 # ---- disposable environment ------------------------------------------------
 
-WORK=$(mktemp -d "${TMPDIR:-/tmp}/efiction-http.XXXXXX")
+# EF_WORK lets a driver (tests/compat/apache.sh) supply the disposable
+# directory it already mounts into the HTTP fixture.
+WORK="${EF_WORK:-$(mktemp -d "${TMPDIR:-/tmp}/efiction-http.XXXXXX")}"
 WEB="$WORK/web"
 TOKEN_FILE="$WORK/efiction-install-token.txt"
 cleanup() {
@@ -150,13 +154,21 @@ esac
 
 # The owner secret: 32 random bytes as lowercase hex, private permissions,
 # stored OUTSIDE the HTTP document root (parent of $WORK/web is $WORK).
+# EF_TOKEN_MODE lets a driver relax the mode when the HTTP server user is a
+# different uid (tests/compat/apache.sh); the file still lives in a private
+# directory under $HOME for the duration of one run.
 openssl rand -hex 32 > "$TOKEN_FILE"
-chmod 600 "$TOKEN_FILE"
+chmod "${EF_TOKEN_MODE:-600}" "$TOKEN_FILE"
 ADMIN_SECRET=$(cat "$TOKEN_FILE")
 
 if [ "$MODE" = "fresh" ]; then
 	mkdir -p "$WEB"
-	(cd "$SOURCE_DIR" && tar --exclude='./.git' --exclude='./tests' --exclude='./dist' -cf - .) | tar -xf - -C "$WEB"
+	if [ -n "${EF_RELEASE_ZIP:-}" ]; then
+		# The release gate installs from the built uploadable ZIP.
+		unzip -qo "$EF_RELEASE_ZIP" -d "$WEB"
+	else
+		(cd "$SOURCE_DIR" && tar --exclude='./.git' --exclude='./tests' --exclude='./dist' -cf - .) | tar -xf - -C "$WEB"
+	fi
 else
 	mkdir -p "$WEB"
 	# Upgrade fixture webroot: the provenance verified upstream 3.5.5 tree
@@ -166,7 +178,14 @@ fi
 
 mysql_q "CREATE DATABASE \`$DB_NAME\` CHARACTER SET utf8mb4"
 
-# ---- local HTTP server on a dynamically allocated port ----------------------
+# ---- HTTP endpoint ----------------------------------------------------------
+# EF_BASE_URL reuses the prepared assertions against an already running
+# server (tests/compat/apache.sh points it at the Apache fixture). Without
+# it, a php -S server on a dynamically allocated port serves as the fast
+# local probe.
+if [ -n "${EF_BASE_URL:-}" ]; then
+	BASE="${EF_BASE_URL%/}"
+else
 
 PORT=$("$PHP_BIN" -r '
 for ($i = 0; $i < 50; $i++) {
@@ -191,6 +210,8 @@ until curl -s -o /dev/null "http://127.0.0.1:$PORT/index.php" 2>/dev/null; do
 	"$PHP_BIN" -r 'usleep(100000);'
 done
 BASE="http://127.0.0.1:$PORT"
+
+fi
 
 JAR="$WORK/cookies.txt"
 ANON_JAR="$WORK/anon.txt"
@@ -480,7 +501,13 @@ else
 	copy_fork_over_fixture() {
 		find "$WEB" -mindepth 1 -maxdepth 1 \
 			! -name config.php ! -name stories ! -name .htaccess -exec rm -rf {} +
-		(cd "$SOURCE_DIR" && tar --exclude='./.git' --exclude='./tests' --exclude='./dist' -cf - .) | tar -xf - -C "$WEB"
+		if [ -n "${EF_RELEASE_ZIP:-}" ]; then
+			# File-overwrite upgrade from the release ZIP: config.php and the
+			# uploaded stories stay in place.
+			unzip -qo "$EF_RELEASE_ZIP" -x "config.php" "stories/*" -d "$WEB"
+		else
+			(cd "$SOURCE_DIR" && tar --exclude='./.git' --exclude='./tests' --exclude='./dist' -cf - .) | tar -xf - -C "$WEB"
+		fi
 	}
 	copy_fork_over_fixture
 

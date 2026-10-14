@@ -28,14 +28,9 @@ if(isset($_GET['benchmark'])) {
 	$start = ((float)$usec + (float)$sec);
 }
 $headerSent = false;
-if(get_magic_quotes_gpc()){
-	foreach($_POST as $var => $val) {
-		$_POST[$var] = is_array( $val ) ? array_map( 'stripslashes', $val ) : stripslashes( $val );
-	}
-	foreach($_GET as $var => $val) {
-		$_GET[$var] = is_array( $val ) ? array_map( 'stripslashes', $val ) : stripslashes( $val );
-	}
-}
+// Maintenance fork (PHP 8.3+): the magic_quotes stripping block from
+// upstream is removed. Magic quotes cannot exist on PHP 8, and the old
+// stripslashes pass would corrupt real user input.
 
 // Prevent possible XSS attacks via $_GET.
 foreach ($_GET as $v) {

@@ -366,7 +366,7 @@ function replace_naughty($text) {
 	$i = 0;
 	for($j = 0; $j < sizeof($words); $j++) {
 		if(strpos($words[$j], "*") === false) {
-			$replace[$i] = str_pad($words[$j]{0}, strlen($words[$j]), "*");
+			$replace[$i] = str_pad($words[$j][0], strlen($words[$j]), "*");
 			$naughtywords[$i] = '/\b('.$words[$j].'\b)|('.build_word($words[$j]).')\b/i';
 			$i++;
 		}

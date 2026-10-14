@@ -155,7 +155,7 @@ function validate( ) {
 				$storytext .= $story['storytext'];
 			}
 			if(strpos($story, "<br>") === false && strpos($story, "<p>") === false && strpos($story, "<br />") === false) $storytext = nl2br($storytext);
-			$storytext = format_story($storytext, $allowed_tags));
+			$storytext = format_story($storytext, $allowed_tags);
 			$output .= $storytext;
 			$output .= "<br /><br />";
 			$output .= "<a href=\"admin.php?action=validate&amp;sid=".$story['sid']."&amp;chapid=".$story['chapid']."&amp;validate=yes\">"._VALIDATE."</a> | <a href=\"stories.php?action=editchapter&amp;chapid=".$story['chapid']."&amp;admin=1\">"._EDIT." - "._CHAPTER."</a> | <a href=\"stories.php?action=delete&amp;chapid=".$story['chapid']."&amp;sid=".$story['sid']."&amp;admin=1&amp;uid=".$story['uid']."\">"._DELETE." - "._CHAPTER."</a> | <a href=\"javascript:pop('admin.php?action=yesletter&amp;uid=".$story['uid']."&amp;chapid=".$story['chapid']."', 400, 300, 'yes')\">"._YESLETTER."</a> | <a href=\"javascript:pop('admin.php?action=noletter&amp;uid=".$story['uid']."&amp;chapid=".$story['chapid']."',400, 300, 'yes')\">"._NOLETTER."</a><br />";

@@ -82,9 +82,17 @@ class multi_upfiles extends file_upload {
 		} 
 	}
 	function get_img_size($file) {
-		$img_size = getimagesize($file);
+		$img_size = @getimagesize($file);
+		// Maintenance fork: a non-image returns false; null dimensions used
+		// to pass the size limits as valid.
+		if($img_size === false) {
+			$this->x_size = null;
+			$this->y_size = null;
+			return false;
+		}
 		$this->x_size = $img_size[0];
 		$this->y_size = $img_size[1];
+		return true;
 	}
 	function upload_multi_files () {
 		global $output, $imageheight, $imagewidth; 
@@ -96,9 +104,16 @@ class multi_upfiles extends file_upload {
 					$new_name = $this->set_file_name();
 					$ext = $this->get_extension($new_name);
 					$validImage = true;
-					if($ext == ".jpg" || $ext == ".gif" || $ext == ".jpeg") {
-						$this->get_img_size($this->tmp_names_array[$key]);
-						if($this->x_size > $imageheight) {
+					// Maintenance fork: PNG was never size-checked, and a
+					// non-image (getimagesize failure) passed as valid because
+					// null dimensions never exceeded the limits; both are
+					// rejected now.
+					if($ext == ".jpg" || $ext == ".gif" || $ext == ".jpeg" || $ext == ".png") {
+						if(!$this->get_img_size($this->tmp_names_array[$key])) {
+							$this->message[] = $this->extra_text(3);
+							$validImage = false;
+						}
+						else if($this->x_size > $imageheight) {
 							$this->message[] = $this->extra_text(3);
 							$validImage = false;
 						}

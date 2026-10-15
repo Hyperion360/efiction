@@ -1,4 +1,6 @@
-# eFiction 3.5.5 maintenance fork (unofficial)
+# eFiction 3.5.5 maintenance fork (modern PHP + bug & security fixes)
+
+## This is a maintenance release only. When you have time import/migrate your eFiction archive to Kiption: https://github.com/hyperion360/kiption
 
 This is an unofficial eFiction 3.5.5 maintenance fork for existing archives. It is not affiliated with the original eFiction maintainers. This fork is a maintenance release only: the same eFiction, repaired for current PHP, with no new features. If you want the modern successor with new features and faster page serving, [migrate to Kiption](https://github.com/Hyperion360/kiption#migrating-from-efiction): it imports this archive in one command and is MIT licensed, so there are no copyleft obligations if you extend it. Host Kiption yourself for free, or let Hyperion360 host it for you on [Kiption Cloud](https://kiption.com/cloud). Review the migration report and verify your archive before cutover.
 

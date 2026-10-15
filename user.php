@@ -56,7 +56,9 @@ if((empty($action) || $action == "login") && isMEMBER) {
 	$output .= "</div>\n";
 }
 else if(!empty($action)) {
-	$panelquery = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_panels WHERE panel_name = '$action' AND (panel_type='U' ".(!$submissionsoff || isADMIN ? " OR panel_type = 'S'" : "").($favorites ? " OR panel_type = 'F'" : "").") LIMIT 1");
+	// Maintenance fork: $action arrives via strip_tags only, which keeps
+	// quotes; escape it before it reaches the panel lookup.
+	$panelquery = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_panels WHERE panel_name = '".escapestring($action)."' AND (panel_type='U' ".(!$submissionsoff || isADMIN ? " OR panel_type = 'S'" : "").($favorites ? " OR panel_type = 'F'" : "").") LIMIT 1");
 	if(dbnumrows($panelquery)) {
 		$panel = dbassoc($panelquery);
 		if($panel['panel_level'] > 0 && !isMEMBER) accessDenied( );

@@ -26,6 +26,12 @@ if(isset($_GET['action']) && ($_GET['action'] == "categories" || $_GET['action']
 
 $disableTiny = true;
 
+// Maintenance fork: panel deny paths (custom pages, messages) set the
+// response status after header.php has already produced output; buffering
+// keeps those status changes effective on hosts without whole-page output
+// buffering (the installer solved the same problem the same way).
+ob_start();
+
 include ("header.php");
 
 //make a new TemplatePower object
@@ -54,7 +60,9 @@ else include_once("languages/en_admin.php");
 	}
 	$output .= "</div>\n";
 	if($action) {
-		$panelquery = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_panels WHERE panel_name = '$action' AND panel_type = 'A' LIMIT 1");
+		// Maintenance fork: $action arrives via strip_tags only, which keeps
+		// quotes; escape it before it reaches the panel lookup.
+		$panelquery = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_panels WHERE panel_name = '".escapestring($action)."' AND panel_type = 'A' LIMIT 1");
 		if(dbnumrows($panelquery)) {
 			$panel = dbassoc($panelquery);
 			if((isset($panel['panel_level']) ? $panel['panel_level'] : 0) >= uLEVEL) {

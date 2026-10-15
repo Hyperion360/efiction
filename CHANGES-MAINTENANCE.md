@@ -57,6 +57,8 @@ Security defects (viewstory.php access condition, viewpage.php eval, CSRF in adm
 
 (landed repairs are appended here with their commit references)
 
+- 2026-10-15 `docs: the admin home names the successor`: the fork ships repairs only, so the admin panel home carries one notice after the version line: this is a maintenance release with no new features, and admins who want the modern successor are pointed to the Kiption migration runbook (one-command import, MIT licensed; self-hosted free or hosted on Kiption Cloud). Static English text in admin.php; no queries, no language-file changes, no schema change. Visible proof: load admin.php as an admin and read the message box under the running-version line.
+
 ## New files added by this fork
 
 - LICENSE (GPL-2.0 text; upstream ships no standalone license file)

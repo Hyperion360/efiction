@@ -77,6 +77,10 @@ else include_once("languages/en_admin.php");
 		}
 		$output .= write_message($adminnotices);
 		$output .= write_message(_RUNNINGVERSION);
+		// The maintenance-fork notice: the fork ships repairs only, so the
+		// admin home says once where the successor lives. Static English, no
+		// queries, no language-file changes; recorded in CHANGES-MAINTENANCE.md.
+		$output .= write_message("This is a maintenance release of eFiction: the same archive, repaired for current PHP, with no new features. If you want the modern successor with new features and faster page serving, <a href=\"https://github.com/Hyperion360/kiption#migrating-from-efiction\">migrate to Kiption</a>; this archive imports in one command and Kiption is MIT licensed. Host it yourself for free, or let <a href=\"https://kiption.cloud\">Kiption Cloud</a> host it for you.");
 	}	
 	$tpl->assign( "output", $output );
 	$tpl->printToScreen();

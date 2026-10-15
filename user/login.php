@@ -66,10 +66,17 @@
 		}
 		if($passwd['password'] == $encryptedpassword) {
 			if(isset($_POST['cookiecheck'])) {
-				setcookie($sitekey."_useruid",$passwd['uid'], time()+60*60*24*30, "/");
-				setcookie($sitekey."_salt", md5($passwd['email'].$encryptedpassword),  time()+60*60*24*30, "/");
+				// Maintenance fork: httponly and Lax on the remember-me pair,
+				// matching the session cookie.
+				setcookie($sitekey."_useruid", $passwd['uid'], array('expires' => time()+60*60*24*30, 'path' => "/", 'httponly' => true, 'samesite' => 'Lax'));
+				setcookie($sitekey."_salt", md5($passwd['email'].$encryptedpassword), array('expires' => time()+60*60*24*30, 'path' => "/", 'httponly' => true, 'samesite' => 'Lax'));
 			}
-			if(!isset($_SESSION)) session_start( );
+			if(!isset($_SESSION)) {
+				// Maintenance fork: match header.php's httponly/Lax session cookie.
+				ini_set('session.cookie_httponly', '1');
+				ini_set('session.cookie_samesite', 'Lax');
+				session_start( );
+			}
 			// Maintenance fork: the pre-authentication session id is replaced
 			// on promotion so a planted session id cannot survive login.
 			session_regenerate_id(true);

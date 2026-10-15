@@ -2,7 +2,7 @@
 
 This is an unofficial eFiction 3.5.5 maintenance fork for existing archives. It is not affiliated with the original eFiction maintainers. For new archives, consider [Kiption](https://github.com/Hyperion360/kiption), a separate, from-scratch fiction platform. Kiption provides an eFiction export/import workflow; review its migration report and verify your archive before cutover.
 
-Maintained by [Hyperion360](https://hyperion360.com/). The scope is compatibility repair: the same eFiction 3.5.5 PHP pages, templates, and schema, running on current PHP and database versions, with the security defects listed in [CHANGES-MAINTENANCE.md](CHANGES-MAINTENANCE.md) fixed. Every change is recorded there with its reproduction. There is no schema change and no new feature work.
+Maintained by [Danilo Stern-Sapad](https://danilosapad.com/) of [Hyperion360](https://hyperion360.com/), who contributed unreleased work to eFiction and to fiction-archive plugins for Nuke-based CMSes in the PHP 5 era. The scope is compatibility repair: the same eFiction 3.5.5 PHP pages, templates, and schema, running on current PHP and database versions, with the security defects listed in [CHANGES-MAINTENANCE.md](CHANGES-MAINTENANCE.md) fixed. Every change is recorded there with its reproduction. There is no schema change and no new feature work.
 
 ## Tested requirements
 
@@ -24,6 +24,8 @@ Back up your files and database, then upload the release ZIP over the existing f
 ## Migrating to Kiption
 
 Kiption documents an export/import runbook: [Migrating from eFiction](https://github.com/Hyperion360/kiption/blob/main/README.md#migrating-from-efiction). Self-hosting Kiption is free and needs PHP 8.3+ with the pdo_sqlite extension. The exporter script runs on the old install and needs PHP 8.0+ with the zlib and phar extensions. The exported bundle contains member email addresses and legacy password hashes; treat it as a password file and delete it after the import. [Kiption Cloud](https://kiption.cloud) hosts archives, including eFiction migration on paid tiers.
+
+License note: Kiption is MIT licensed, a friendlier license than eFiction's GPL. Move your code, extend it, or build a service on it with no copyleft obligations.
 
 Verify the import against your own archive before cutover: compare story, chapter, member, and rating counts and spot-check access restrictions on both sides.
 

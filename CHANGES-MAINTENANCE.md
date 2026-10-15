@@ -92,19 +92,37 @@ fail on PHP 8.3.35 against MariaDB 10.6.23 and MySQL 8.0.46.
 | 42 | viewpage.php:44, admin.php (fork's 403/503 denies) | http_response_code() ran after header.php had already produced output, so on hosts without whole-page output buffering the documented 403/503 stayed 200 with a headers-already-sent warning (the installer had fixed this exact class for itself with ob_start). | Manual on an unbuffered handler; php -S masks it by buffering. | fixed: the pages are buffered from the top, the installer's own solution |
 | 43 | header.php:49, user.php:31, user/login.php:68-72 | The session cookie and the remember-me pair carried no httponly or samesite flags, so script injection could read them and cross-site POSTs carried them. | Response headers: the flags are now set at every session start and on both remember-me cookies; Lax also blocks cross-site POST cookie sending in modern browsers, which narrows the admin CSRF exposure below. | fixed: httponly + samesite=Lax (the `secure` flag stays a deployment decision for HTTPS sites, documented in README's host requirements) |
 
-### Confirmed, repair pending (inventory)
+## Second hardening pass (2026-10-15)
 
-These were confirmed by the same audit but are not repaired in this pass;
-each needs either a decision or a change larger than the maintenance
-contract's no-schema-change, no-new-features line:
+Closes the pending inventory from the full-codebase audit where a repair was
+possible within the maintenance contract. Regression checks live in
+tests/compat/security.php section 9 (the harness is 44 ok, 0 fail on PHP
+8.3.35 against MySQL 8.0.46 and MariaDB 10.6.23; fresh installs are 77 ok on
+PHP 8.3.35 and 8.4.8; upgrades 18 ok).
 
-- **Admin-area CSRF**: only admin/custpages.php and admin/messages.php carry the fork's session token. Every other panel mutates on the admin session alone, and members/news/links/panels/featured/lock/maintenance (plus stories.php/series.php with `admin=1`) mutate on GET links, so one forged request against a logged-in admin deletes members, stories, or settings. Remediation: extend the existing custpages/messages token pattern to every panel and convert the GET mutations to POST forms. The SQL injection points in those panels are fixed (item 38); the forged-request surface is not.
-- **Password hashing**: unsalted MD5 everywhere (upstream). A migration (e.g. to password_hash with a legacy-md5 fallback on login) is a behavior change to the login path and every archive's stored hashes; needs its own release.
-- **TinyMCE 3.0.9 (2008)**: ships with known 3.x advisories around advimage/media URL handling. A vendored upgrade is a file replacement decision; the server-side strip_tags/descript pass on story text is the effective control today.
-- **descript() coverage**: the helper's on*-attribute blacklist misses onerror/onfocus/ontoggle, and its optional second argument is silently ignored (callers at revres.php/editbio.php relied on it). The output sites found reachable are now entity-encoded (items 28, 34); a helper rewrite would touch every caller.
-- **includes/upload_class.php image validation**: a non-image with an image extension passes (getimagesize failure is not rejected, PNG never checked). Combined with item 32's containment the write stays inside the member's images directory; a strict content check is a follow-up.
-- **Email enumeration** on the lost-password response (distinct messages for unknown addresses) and the remaining upstream 0777 chmod on story directories.
-- **stories/ is web-served**: upstream design; chapter .txt files are public by URL. Documented upstream behavior, listed here for the record.
+| # | File:line | Defect | Reproduction | Status |
+| --- | --- | --- | --- | --- |
+| 44 | admin.php + every admin panel | Admin-area CSRF: every panel except custom pages and messages mutated on the admin session alone, and members/admins/news/links/panels/featured/lock/maintenance/categories/characters/classifications/ratings/warnings/genres/authorfields/blocks (plus stories.php with admin=1) mutated on plain GET links, so one forged request deleted members, stories, or settings. | section 9: a forged POST to admin.php returns 403 and deletes nothing; the upstream GET delete link executes nothing; a tokened POST executes (a sacrificial member is deleted); the admin-flagged story delete is denied without a token. | fixed: admin.php verifies the session token on every POST and its output buffer injects the token field into every rendered form (the installer keeps its own stronger gate; the shared helpers yield to already-loaded implementations); every GET mutation is now a POST form carrying the token, and the receiving branches read POST only |
+| 45 | user/login.php, user/lostpassword.php | No brute-force protection on login, and the lost-password response distinguished known from unknown addresses (enumeration) with no rate limit on resets. | section 9: ten failed logins lock the form for the address (the eleventh attempt is refused even with the right password; clearing the window restores login); unknown and known lost-password addresses now get the identical response. | fixed: failed logins are counted in the existing fanfiction_log table (type LF, no schema change) - ten in fifteen minutes locks the form fifteen minutes; lost-password resets are rate-limited the same way (type LP, five per hour) and the response is uniform |
+| 46 | includes/deletefunctions.php:137 | Member deletion fataled on MySQL 8 defaults: "SELECT *, COUNT(uid) ... GROUP BY uid" violates ONLY_FULL_GROUP_BY, and the follow-up UPDATE targeted one arbitrary story from the collapsed group. | Drive a member delete on MySQL 8.0.46: the page dies with the SQL error (surfaced by the new section 9 tokened-delete check). | fixed: the user's coauthor rows are removed first and stories left with no coauthor rows at all get their flag cleared |
+| 47 | user/manageimages.php:84-108 | Image upload content validation: PNG files were never size-checked, and a non-image with an image extension passed as valid because getimagesize failure left null dimensions that never exceeded the limits. | Upload a text file named .png: accepted upstream. | fixed: getimagesize failure rejects the file; .png joins the size-checked extensions |
+| 48 | includes/corefunctions.php (descript) | The on*-attribute blocklist named nine handlers, missing onerror, onfocus, ontoggle and later additions. | Store `<img src=x onerror=alert(1)>` through an allowed-tag field: survived upstream. | fixed: the generic on[a-z]+ pattern strips every event-handler attribute |
+| 49 | blocks/login/login.php:8-10 | The sidebar login block's label for-attributes carried stray '=' characters, so they never associated with their inputs; screen readers announced unnamed textboxes (WCAG 4.1.2). | Accessibility tree of any page with the login block. | fixed: for-attributes corrected |
+| 50 | includes/mysqli_functions.php:30 | dbquery's failure paths called accessDenied() before it is defined in early bootstrap contexts (login.php runs before corefunctions loads), turning a failed query into a fatal about the missing function instead of the guarded error page. | Any query failure in the login path (observed via the throttle's log insert against a schema quirk). | fixed: a plain 500 is emitted when the guard function is not loaded yet |
+| 51 | user/profile.php, user/logout.php | The profile image had no alt attribute (WCAG 1.1.1), and logout left the session id reusable. | Static. | fixed: alt added (decorative); logout rotates the session id |
+
+Also in this pass: the Kiption Cloud link now points at its planned home,
+kiption.com/cloud (README.md and the admin-home notice).
+
+### Still open (need a decision or exceed the contract)
+
+- **Password hashing**: passwords are unsalted MD5. The `password` column is varchar(40); modern password_hash output needs 60+ characters, so the upgrade is impossible without the schema change the maintenance contract forbids. It needs its own release (widen the column, hash on successful login, keep an md5 fallback) or the Kiption migration, whose importer carries the legacy hashes forward.
+- **TinyMCE 3.0.9 (2008)**: known 3.x advisories around advimage/media URL handling. A vendored upgrade is a file replacement plus integration rework; the server-side strip_tags/descript pass on story text is the effective control. The descript widening (item 48) narrows what stored markup can do.
+- **0777 story directories** (stories.php:255 and image dirs): deliberate shared-host compatibility (PHP often runs as a different user than the FTP owner there); tightening to 0755 would break writes on exactly the hosts this fork targets. Left as upstream behavior; hosts with a proper PHP-user setup can chmod down.
+
+The admin-area CSRF, login rate limiting, lost-password enumeration, upload
+content validation, and descript coverage entries from the first inventory
+are closed by items 44-48 above.
 
 ## New files added by this fork
 

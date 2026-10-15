@@ -489,9 +489,11 @@ if [ "$MODE" = "fresh" ]; then
 	check_not_contains "config.php not readable as text (no dbname)" "$DB_NAME" "$BODY"
 	# curl squashes /../ dot segments per RFC 3986 before sending, so
 	# without --path-as-is the traversal to the token file outside the
-	# docroot is never actually requested and the check below cannot fail.
-	status=$(curl -s --path-as-is --max-time 60 -o "$BODY" -w '%{http_code}' "$BASE/../efiction-install-token.txt")
-	check "token traversal request is rejected (status $status, not 200)" [ "$status" != "200" ]
+	# docroot is never actually requested. PHP 8.3's dev server rejects the
+	# raw traversal (404); PHP 8.4 normalizes it into the webroot and falls
+	# back to the index (200, no token) - the security property either way
+	# is the needle assertion below: the secret never appears in the body.
+	curl -s --path-as-is --max-time 60 -o "$BODY" -w '%{http_code}\n' "$BASE/../efiction-install-token.txt" >&2
 	check_not_contains "token file not web readable" "$ADMIN_SECRET" "$BODY"
 
 else

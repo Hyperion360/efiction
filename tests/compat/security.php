@@ -358,6 +358,65 @@ $db->query("INSERT INTO fanfiction_chapters (title, inorder, storytext, validate
 get("$base/viewstory.php?action=printable&sid=1&chapter=99", $body, $status, $guestJar);
 check("printable unvalidated chapter renders without a PHP fatal", $status === '200' && preg_match('/<(Fatal error|Warning|Deprecated)\b/', (string) $body) !== 1);
 
+// ---- 9. admin-area CSRF gate (2026-10-15, second pass) ------------------------
+// admin.php verifies the session token on every POST and its output buffer
+// injects the token field into every rendered form; the GET mutations that
+// upstream shipped as links are POST forms now. A sacrificial member row
+// proves each side.
+
+$db->query("INSERT INTO fanfiction_authors (uid, penname, realname, bio, email, date, password) VALUES (99, 'CsrfTarget', '', '', 'csrftarget@example.com', NOW(), 'x')");
+check("csrf sacrificial member exists", row_scalar($db, "SELECT penname FROM fanfiction_authors WHERE uid = 99") === 'CsrfTarget');
+
+// A forged POST (no token) to a destructive panel action is rejected with
+// 403 and changes nothing.
+post("$base/admin.php?action=members", array('confirm' => 'yes', 'delete' => '99'), $body, $status, $adminJar);
+check("forged admin POST is denied (403)", $status === '403');
+check("forged admin POST deleted no member", row_scalar($db, "SELECT penname FROM fanfiction_authors WHERE uid = 99") === 'CsrfTarget');
+
+// The upstream GET link no longer executes anything.
+get("$base/admin.php?action=members&confirm=yes&delete=99", $body, $status, $adminJar);
+check("legacy GET delete link executes nothing", $status === '200' && row_scalar($db, "SELECT penname FROM fanfiction_authors WHERE uid = 99") === 'CsrfTarget');
+
+// Every admin page carries the injected token in its forms (the settings
+// panel always renders a large POST form).
+get("$base/admin.php?action=settings", $body, $status, $adminJar);
+check("admin pages inject the token into forms", preg_match("/name=['\"]csrf['\"] value=['\"][0-9a-f]{64}['\"]/", (string) $body) === 1);
+preg_match("/name=['\"]csrf['\"] value=['\"]([0-9a-f]{64})['\"]/", (string) $body, $adminCsrf);
+
+// A tokened POST executes: the sacrificial member is deleted.
+if ($adminCsrf) {
+	post("$base/admin.php?action=members", array('confirm' => 'yes', 'delete' => '99', 'csrf' => $adminCsrf[1]), $body, $status, $adminJar);
+	check("tokened admin POST executes", $status === '200' && row_scalar($db, "SELECT penname FROM fanfiction_authors WHERE uid = 99") === null);
+} else {
+	check("tokened admin POST executes", false);
+}
+
+// The admin-flagged story delete requires the token too.
+post("$base/stories.php?action=delete", array('confirmed' => 'yes', 'sid' => '1', 'admin' => '1', 'uid' => '10'), $body, $status, $adminJar);
+check("forged admin story delete is denied", row_scalar($db, "SELECT title FROM fanfiction_stories WHERE sid = 1") === 'Fixture Story');
+
+// Lost-password responses no longer distinguish known from unknown mail.
+// (Both addresses must pass validEmail, or the panel rejects the input
+// before the uniform branch.)
+post("$base/user.php?action=lostpassword", array('submit' => 'Submit', 'email' => 'nobody@example.com'), $body, $status);
+$unknownMail = strpos((string) $body, 'A new password has been sent to your e-mail address.') !== false;
+post("$base/user.php?action=lostpassword", array('submit' => 'Submit', 'email' => 'somebody-else@example.com'), $body, $status);
+check("lost-password response is uniform", $unknownMail && strpos((string) $body, 'A new password has been sent to your e-mail address.') !== false);
+// Both probe posts counted toward the rate limit; clear them so later runs
+// and the harness's own flows are unaffected.
+$db->query("DELETE FROM fanfiction_log WHERE log_type = 'LP' AND log_ip = INET_ATON('127.0.0.1')");
+
+// Login brute-force throttle: ten failures lock the form for this address;
+// the lock is then cleared so nothing downstream inherits it.
+for ($attempt = 0; $attempt < 10; $attempt++) {
+	post("$base/user.php?action=login", array('submit' => 'submit', 'penname' => 'FixtureAdmin', 'password' => 'wrong password'), $body, $status, $guestJar);
+}
+post("$base/user.php?action=login", array('submit' => 'submit', 'penname' => 'FixtureAdmin', 'password' => 'fixturepass123'), $body, $status, $guestJar);
+check("eleventh attempt is throttled even with the right password", $status === '200' && strpos((string) $body, 'Too many failed sign-in attempts') !== false);
+$db->query("DELETE FROM fanfiction_log WHERE log_type = 'LF' AND log_ip = INET_ATON('127.0.0.1')");
+post("$base/user.php?action=login", array('submit' => 'submit', 'penname' => 'FixtureAdmin', 'password' => 'fixturepass123'), $body, $status, $guestJar);
+check("login works again once the throttle window is cleared", $status === '200' && strpos((string) $body, 'name="pswd"') === false);
+
 // ---- teardown ---------------------------------------------------------------
 if ($fails) {
 	// Keep the disposable environment for inspection unless KEEP_WORK=0.

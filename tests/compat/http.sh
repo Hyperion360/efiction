@@ -286,7 +286,7 @@ if [ "$MODE" = "fresh" ]; then
 	CONFIG_SHA=$("$PHP_BIN" -r 'echo hash_file("sha256", $argv[1]);' "$WEB/config.php")
 	MARKER_SHA=$("$PHP_BIN" -r '$d = json_decode(file_get_contents($argv[1]), true); echo $d["config_sha256"] ?? "missing";' "$WORK/efiction-install-state.json")
 	check "state marker carries the config hash" [ "$CONFIG_SHA" = "$MARKER_SHA" ]
-	perms=$(stat -f '%Lp' "$WEB/config.php" 2>/dev/null || stat -c '%a' "$WEB/config.php")
+	perms=$(stat -c '%a' "$WEB/config.php" 2>/dev/null || stat -f '%Lp' "$WEB/config.php")
 	check "config.php is not world writable ($perms)" sh -c '[ "$(( 8#'"$perms"' & 8#22 ))" -eq 0 ]'
 
 	# GET mutation attempt: the old GET install=automatic created tables and

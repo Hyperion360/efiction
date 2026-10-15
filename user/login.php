@@ -70,6 +70,9 @@
 				setcookie($sitekey."_salt", md5($passwd['email'].$encryptedpassword),  time()+60*60*24*30, "/");
 			}
 			if(!isset($_SESSION)) session_start( );
+			// Maintenance fork: the pre-authentication session id is replaced
+			// on promotion so a planted session id cannot survive login.
+			session_regenerate_id(true);
 			$_SESSION[$sitekey."_useruid"] = $passwd['uid'];
 			$_SESSION[$sitekey."_salt"] = md5($passwd['email'].$encryptedpassword);
 			$logincode = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_codeblocks WHERE code_type = 'login'");

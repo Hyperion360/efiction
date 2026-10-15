@@ -26,10 +26,16 @@ if(!defined("_CHARSET")) exit( );
 
 	$output .= "<div id=\"pagetitle\">"._MANAGEREVIEWS."</div>";
 	if(isset($_POST['submit'])) {
-		$reviewid = isset($_POST['reviewid']) && isNumber($_POST['reviewid']) ? $_POST['reviewid'] : false;
-		$result = dbquery("SELECT review, reviewid, item, type, chapid, uid FROM ".TABLEPREFIX."fanfiction_reviews WHERE reviewid = '".$_POST['rid']."' LIMIT 1");
+		// Maintenance fork: the form posts rid; upstream interpolated it raw
+		// into the SELECT. Only a numeric id may reach the statement.
+		$reviewid = isset($_POST['rid']) && isNumber($_POST['rid']) ? $_POST['rid'] : false;
+		if(!$reviewid) accessDenied( );
+		$result = dbquery("SELECT review, reviewid, item, type, chapid, uid FROM ".TABLEPREFIX."fanfiction_reviews WHERE reviewid = '$reviewid' LIMIT 1");
 		list($review, $reviewid, $item, $type, $chapid, $uid) = dbrow($result);
-		$updated = escapestring($review . "<br><br><i>"._AUTHORSRESPONSE.": " .replace_naughty(descript($_POST['response'], $allowed_tags))."</i>");
+		// Maintenance fork: the response is appended to a review shown to
+		// every visitor; reviews.php strips disallowed tags from its input,
+		// this path did not.
+		$updated = escapestring($review . "<br><br><i>"._AUTHORSRESPONSE.": " .replace_naughty(descript(strip_tags($_POST['response'], $allowed_tags)))."</i>");
 		$success = dbquery("UPDATE ".TABLEPREFIX."fanfiction_reviews SET review = '$updated', respond = '1' WHERE reviewid = '$reviewid'");
 		if($uid) {
 			$prefsquery = dbquery("SELECT "._UIDFIELD." as uid, "._EMAILFIELD." as email, "._PENNAMEFIELD." as penname, newrespond FROM ".TABLEPREFIX."fanfiction_authorprefs as ap LEFT JOIN "._AUTHORTABLE." ON ap.uid = "._UIDFIELD." WHERE ap.uid = "._UIDFIELD." AND "._UIDFIELD." = '$uid' LIMIT 1");

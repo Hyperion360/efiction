@@ -45,7 +45,12 @@ function random_string ($charset_string, $length)
 	$uid = isset($_REQUEST['uid']) ? $_REQUEST['uid'] : false;
 	if(!$uid) $uid = USERUID;
 
-	if((!isADMIN || uLEVEL > 2) && $uid != USERUID && $action == "editbio") $output .= write_error(_NOTAUTHORIZED);
+	// Maintenance fork: upstream only appended an error here and kept
+	// processing, so any member could POST password, penname, and email
+	// changes for arbitrary uids; the request uid also reached the UPDATE
+	// statements unvalidated. Both gates now stop the request.
+	if($uid && !isNumber($uid)) accessDenied( );
+	if((!isADMIN || uLEVEL > 2) && $uid != USERUID && $action == "editbio") accessDenied( );
 	if(isMEMBER) $output .= "<div id=\"pagetitle\">"._EDITPERSONAL."</div>";
 	else $output .= "<div id=\"pagetitle\">"._NEWACCOUNT."</div>";
 	if(!empty($_POST['submit'])) {
@@ -131,7 +136,7 @@ function random_string ($charset_string, $length)
 					$output .= write_message(_PENNAMEINUSE."  "._TRYAGAIN);
 				}
 				else {
-					dbquery("UPDATE "._AUTHORTABLE." SET penname = '".escapestring($penname)."' WHERE uid = '$_POST[uid]'");
+					dbquery("UPDATE "._AUTHORTABLE." SET penname = '".escapestring($penname)."' WHERE uid = '$uid'");
 					if($logging) dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_log (`log_action`, `log_uid`, `log_ip`, `log_type`) VALUES('".escapestring(sprintf(_NEWPEN, USERPENNAME, USERUID, $_POST[oldpenname], $uid, $penname))."', '".USERUID."', INET_ATON('".$_SERVER['REMOTE_ADDR']."'), 'EB')");
 				}
 			}
@@ -173,8 +178,8 @@ function random_string ($charset_string, $length)
 			$output .= "<INPUT name=\"newpenname\" type=\"text\" class=\"textbox\" maxlength=\"200\" value=\"".(isset($user) ? $user['penname'] : "")."\"><INPUT name=\"oldpenname\" type=\"hidden\" value=\"".(isset($user) ? $user['penname'] : "")."\"><font color=\"red\">*</font> ";
 		else if(isset($user)) $output .= " ".$user['penname'];
 		$output .= "</div>
-	 	<div><label for='realname'>"._REALNAME.": </label><INPUT type=\"text\" class=\"textbox=\" name=\"realname\" maxlength=\"200\" value=\"".(isset($user) ? $user['realname'] : "")."\"></div>
-	 	<div><label for='email'>"._EMAIL.":</label><INPUT  type=\"text\" class=\"textbox=\" name=\"email\" value=\"".(isset($user) ? $user['email'] : "")."\" maxlength=\"200\" size=\"35\"><font color=\"red\">*</font></div>
+		<div><label for='realname'>"._REALNAME.": </label><INPUT type=\"text\" class=\"textbox=\" name=\"realname\" maxlength=\"200\" value=\"".(isset($user) ? htmlspecialchars($user['realname'], ENT_QUOTES) : "")."\"></div>
+	 	<div><label for='email'>"._EMAIL.":</label><INPUT  type=\"text\" class=\"textbox=\" name=\"email\" value=\"".(isset($user) ? htmlspecialchars($user['email'], ENT_QUOTES) : "")."\" maxlength=\"200\" size=\"35\"><font color=\"red\">*</font></div>
 	 	<div><label for='bio'>"._BIO.":</label></div>
 		<div style='width: 450px; margin: 0 auto;'><textarea class=\"textbox\" name=\"bio\" cols=\"50\" rows=\"6\">".(isset($user) ? stripslashes($user['bio']) : "")."</TEXTAREA></div>";
 /* The section adds fields to the form from the authorfields table to the authorinfo table allowing dynamic additions to the bio/registration page */

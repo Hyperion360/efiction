@@ -135,6 +135,12 @@ else if($action == "edit" || $action == "add") {
 		else {
 			$output .= write_message(_REVTHANKYOU);
 			if($action == "edit") {
+				// Maintenance fork: upstream let any member (or, with
+				// anonymous reviews on, any visitor) rewrite any review by
+				// id; the update now requires the review to belong to the
+				// poster, or an admin.
+				list($revuid) = dbrow(dbquery("SELECT uid FROM ".TABLEPREFIX."fanfiction_reviews WHERE reviewid = '$reviewid' LIMIT 1"));
+				if(!isADMIN && (int)$revuid !== (int)USERUID) accessDenied( );
 				$update = dbquery("UPDATE ".TABLEPREFIX."fanfiction_reviews SET review = '$review', rating = '$rating' WHERE reviewid = '$reviewid' LIMIT 1");
 				$info = dbquery("SELECT item, type, chapid FROM ".TABLEPREFIX."fanfiction_reviews WHERE reviewid = '$reviewid' LIMIT 1");
 				list($item, $type, $chapid) = dbrow($info);

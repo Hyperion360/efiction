@@ -112,7 +112,14 @@ if($add == "series" || ($action == "add" && !$add) || $action == "edit") {
 			$title = replace_naughty($title);
 			$summary = replace_naughty($summary);
 			if($action == "edit") {
+				// Maintenance fork: upstream overwrote the isNumber-validated
+				// GET seriesid with the raw POST value and never checked
+				// ownership, so any member could rewrite any series row and
+				// inject into the UPDATE.
+				if(!isset($_POST['seriesid']) || !isNumber($_POST['seriesid'])) accessDenied( );
 				$seriesid = $_POST['seriesid'];
+				list($seriesowner) = dbrow(dbquery("SELECT uid FROM ".TABLEPREFIX."fanfiction_series WHERE seriesid = '$seriesid' LIMIT 1"));
+				if(!$admin && $seriesowner != USERUID) accessDenied( );
 				dbquery("UPDATE ".TABLEPREFIX."fanfiction_series SET title = '$title', summary ='$summary', catid = '$category', isopen = '$open', characters = '$charid', classes = '$classes' WHERE seriesid = '$seriesid'");
 				$codequery = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_codeblocks WHERE code_type = 'editseries'");
 				while($code = dbassoc($codequery)) {

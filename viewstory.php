@@ -154,7 +154,9 @@ if($action == "printable") {
 		$c = dbassoc($chapterinfo);
 		// if the *CHAPTER* hasn't been validated and the viewer isn't an admin or the author throw them a warning.  
 		// Maintenance fork: the coauthor array is keyed by uid, so test the key instead of the penname values.
-		if(empty($c['validated']) && !isADMIN && (int) USERUID !== (int) $c['uid'] && !array_key_exists((int) USERUID, $stories['coauthors'])) {
+		// Maintenance fork (PHP 8): $stories is unset above after storyblock;
+		// this branch reads the story row's coauthor array instead.
+		if(empty($c['validated']) && !isADMIN && (int) USERUID !== (int) $c['uid'] && !array_key_exists((int) USERUID, $storyinfo['coauthors'])) {
 			$warning = write_error(_ACCESSDENIED);
 			$tpl->assign("archivedat", $warning);
 			$tpl->printToScreen( );

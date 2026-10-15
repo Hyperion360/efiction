@@ -44,7 +44,10 @@ if($userinfo['bio']) {
 	$tpl->assign("bio", stripslashes($bio));
 }
 if($userinfo['image'])
-	$tpl->assign("image", "<img src=\"".$userinfo['image']."\">");
+	// Maintenance fork: the image value is member-supplied and used to be
+	// echoed into the attribute raw; entity-encode it so quotes cannot break
+	// out of the src attribute on the public profile.
+	$tpl->assign("image", "<img src=\"".htmlspecialchars($userinfo['image'], ENT_QUOTES)."\">");
 $tpl->assign("userlevel", isset($userinfo['level']) && $userinfo['level'] > 0 && $userinfo['level'] < 4 ? _ADMINISTRATOR.(isADMIN ? " - ".$userinfo['level'] : "") : _MEMBER);
 /* Dynamic authorinfo fields */
 $result2 = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_authorinfo WHERE uid = '$uid'");

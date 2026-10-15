@@ -51,9 +51,12 @@ if(isMEMBER) accessDenied( );
 			if(dbnumrows($result) == 0) $output .= write_message(_BADEMAIL);
 			else {
 				include("includes/emailer.php");
-				mt_srand((double)microtime() * 1000000);
-				$charset = '23456789' . 'abcdefghijkmnpqrstuvwxyz' . 'ABCDEFGHJKLMNPQRSTUVWXYZ';		
-				$pass = random_string($charset, 10);
+				// Maintenance fork: upstream seeded mt_rand from the request
+				// microtime, making the reset password brute-forceable from
+				// the seed window; selection is now crypto-random.
+				$charset = '23456789' . 'abcdefghijkmnpqrstuvwxyz' . 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+				$pass = '';
+				for($i = 0; $i < 10; $i++) $pass .= $charset[random_int(0, strlen($charset) - 1)];
 				$encryppass = md5($pass);
 				$subject = _NEWPWDSUB;
 				$mailtext = sprintf(_NEWPWDMSG, $pass);

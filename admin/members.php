@@ -84,9 +84,11 @@ $confirm = isset($_GET['confirm']) ? $_GET['confirm'] : false;
 			dbquery("UPDATE "._AUTHORTABLE." SET admincreated = '0' WHERE "._UIDFIELD." = '".$_GET['release']."'");
 			$emailquery = dbquery("SELECT "._EMAILFIELD." as email, "._PENNAMEFIELD." as penname FROM "._AUTHORTABLE." WHERE uid = '".$_GET['release']."'");
 			$email = dbassoc($emailquery);
-			mt_srand((double)microtime() * 1000000);
+			// Maintenance fork: crypto-random generation, matching the
+			// lost-password reset (upstream seeded mt_rand from microtime).
 			$charset = '23456789' . 'abcdefghijkmnpqrstuvwxyz' . 'ABCDEFGHJKLMNPQRSTUVWXYZ';
-			$pass = random_string($charset, 10);
+			$pass = '';
+			for($i = 0; $i < 10; $i++) $pass .= $charset[random_int(0, strlen($charset) - 1)];
 			$encryppass = md5($pass);
 			//$headers = "From: $sitename\n";
 			dbquery("UPDATE "._AUTHORTABLE." SET "._PASSWORDFIELD." = '$encryppass' WHERE uid = '".$_GET['release']."'");

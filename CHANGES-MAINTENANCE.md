@@ -59,6 +59,7 @@ Security defects (viewstory.php access condition, viewpage.php eval, CSRF in adm
 
 - 2026-10-15 `docs: the admin home names the successor`: the fork ships repairs only, so the admin panel home carries one notice after the version line: this is a maintenance release with no new features, and admins who want the modern successor are pointed to the Kiption migration runbook (one-command import, MIT licensed; self-hosted free or hosted on Kiption Cloud). Static English text in admin.php; no queries, no language-file changes, no schema change. Visible proof: load admin.php as an admin and read the message box under the running-version line.
 
+- 2026-10-15 `docs: publish the security advisory`: docs/SECURITY.md states the limits that cannot be fixed within the contract (unsalted MD5 passwords bound to the varchar(40) column, remember-me tokens derived from database values) or that we will not fix (the 2008-era editor, 0777 story directories for shared-host compatibility, the per-IP login lockout tradeoffs, the backup panel's GET download, cookies not marked secure by default, admin-installed code blocks executing by design), plus the file-backed chapter text readable by direct URL with the Apache mitigation stanza. README's Security notes section links it. Static text only; no queries, no schema change.
 - 2026-10-15 `docs: the credits name the maintainer`: every fork-owned credit surface (README.md, CREDITS.md, docs/PROVENANCE.md, docs/COMPATIBILITY.md, this file's header, and the admin-home notice in admin.php) now names Danilo Stern-Sapad (danilosapad.com) on behalf of Hyperion360 as the person who fixed the listed defects and maintains the fork, and credits him with Kiption, the successor written from the ground up as a much better, faster alternative with richer features. Upstream notices in README.txt and the file headers stay unmodified, per the provenance rules. Static text only; no queries beyond admin.php's existing render, no schema change. Visible proof: load admin.php as an admin and read the notice under the running-version line.
 
 ## Full-codebase hardening pass (2026-10-15)
@@ -134,6 +135,6 @@ are closed by items 44-48 above.
 ## New files added by this fork
 
 - LICENSE (GPL-2.0 text; upstream ships no standalone license file)
-- CREDITS.md, docs/PROVENANCE.md, this file
+- CREDITS.md, docs/PROVENANCE.md, docs/SECURITY.md, this file
 - tests/compat/ test harness files
 - README.md, docs/COMPATIBILITY.md, .github/workflows/ (added by later tasks)

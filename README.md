@@ -31,7 +31,7 @@ Verify the import against your own archive before cutover: compare story, chapte
 
 ## Security notes
 
-Known release-blocking defects in eFiction 3.5.5 are fixed in this fork: the unpublished story access check, stored PHP execution in custom pages, missing write tokens on admin forms, and the unauthenticated legacy upgraders. The full defect inventory with reproductions lives in [CHANGES-MAINTENANCE.md](CHANGES-MAINTENANCE.md). Compatibility limits, such as custom pages containing PHP no longer executing, are listed in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
+Known release-blocking defects in eFiction 3.5.5 are fixed in this fork: the unpublished story access check, stored PHP execution in custom pages, missing write tokens on admin forms, and the unauthenticated legacy upgraders, plus the full hardening recorded below that. The complete defect inventory with reproductions lives in [CHANGES-MAINTENANCE.md](CHANGES-MAINTENANCE.md). The limits that cannot be fixed within this fork's contract or that we will not fix — unsalted MD5 passwords (schema-bound), file-backed chapter text readable by direct URL, the 2008-era editor, world-writable story directories, and the rest, each with its operator guidance — are published as [docs/SECURITY.md](docs/SECURITY.md); read it before deploying. Compatibility limits, such as custom pages containing PHP no longer executing, are listed in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md).
 
 ## License and credits
 

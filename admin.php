@@ -86,9 +86,10 @@ else include_once("languages/en_admin.php");
 		$output .= write_message($adminnotices);
 		$output .= write_message(_RUNNINGVERSION);
 		// The maintenance-fork notice: the fork ships repairs only, so the
-		// admin home says once where the successor lives. Static English, no
-		// queries, no language-file changes; recorded in CHANGES-MAINTENANCE.md.
-		$output .= write_message("This is a maintenance release of eFiction: the same archive, repaired for current PHP, with no new features. If you want the modern successor with new features and faster page serving, <a href=\"https://github.com/Hyperion360/kiption#migrating-from-efiction\">migrate to Kiption</a>; this archive imports in one command and Kiption is MIT licensed. Host it yourself for free, or let <a href=\"https://kiption.cloud\">Kiption Cloud</a> host it for you.");
+		// admin home says once who maintains it and where the successor
+		// lives. Static English, no queries, no language-file changes;
+		// recorded in CHANGES-MAINTENANCE.md.
+		$output .= write_message("This is a maintenance release of eFiction, fixed and maintained by Danilo Stern-Sapad of Hyperion360 (https://danilosapad.com/): the same archive, repaired for current PHP, with no new features. The same maintainer developed Kiption, the successor written from the ground up as a much better, faster alternative with richer features. <a href=\"https://github.com/Hyperion360/kiption#migrating-from-efiction\">Migrate to Kiption</a> when you want it; this archive imports in one command and Kiption is MIT licensed. Host it yourself for free, or let <a href=\"https://kiption.cloud\">Kiption Cloud</a> host it for you.");
 	}	
 	$tpl->assign( "output", $output );
 	$tpl->printToScreen();

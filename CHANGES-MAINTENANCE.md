@@ -1,6 +1,6 @@
 # Maintenance changes
 
-Changes made by the Hyperion360 maintenance fork on top of the upstream import (see docs/PROVENANCE.md). Each entry lists the confirmed defect, its exact reproduction, and the repair. This file starts as a blocker inventory and grows as repairs land.
+Changes made by Danilo Stern-Sapad (https://danilosapad.com/) on behalf of Hyperion360, on top of the upstream import (see docs/PROVENANCE.md). Each entry lists the confirmed defect, its exact reproduction, and the repair. This file starts as a blocker inventory and grows as repairs land.
 
 ## Baseline blockers (confirmed on import, 2026-10-14)
 
@@ -58,6 +58,8 @@ Security defects (viewstory.php access condition, viewpage.php eval, CSRF in adm
 (landed repairs are appended here with their commit references)
 
 - 2026-10-15 `docs: the admin home names the successor`: the fork ships repairs only, so the admin panel home carries one notice after the version line: this is a maintenance release with no new features, and admins who want the modern successor are pointed to the Kiption migration runbook (one-command import, MIT licensed; self-hosted free or hosted on Kiption Cloud). Static English text in admin.php; no queries, no language-file changes, no schema change. Visible proof: load admin.php as an admin and read the message box under the running-version line.
+
+- 2026-10-15 `docs: the credits name the maintainer`: every fork-owned credit surface (README.md, CREDITS.md, docs/PROVENANCE.md, docs/COMPATIBILITY.md, this file's header, and the admin-home notice in admin.php) now names Danilo Stern-Sapad (danilosapad.com) on behalf of Hyperion360 as the person who fixed the listed defects and maintains the fork, and credits him with Kiption, the successor written from the ground up as a much better, faster alternative with richer features. Upstream notices in README.txt and the file headers stay unmodified, per the provenance rules. Static text only; no queries beyond admin.php's existing render, no schema change. Visible proof: load admin.php as an admin and read the notice under the running-version line.
 
 ## Full-codebase hardening pass (2026-10-15)
 

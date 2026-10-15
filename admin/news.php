@@ -39,15 +39,17 @@ if(uLevel > 3) accessDenied();
 			}
 			else $output .= write_error(_ERROR." ".TRYAGAIN);
 		}
-		if(isset($_GET['delete']) && isNumber($_GET['delete'])) {
-			if($_GET['confirm'] == "yes") {
-				dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_news where nid = '".$_GET['delete']."'");
+		// Maintenance fork: the delete executes only from a tokened POST
+		// (verified centrally in admin.php); a GET renders the question.
+		if(ef_param('delete') && isNumber(ef_param('delete'))) {
+			if(isset($_POST['confirm']) && $_POST['confirm'] == "yes") {
+				dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_news where nid = '".ef_param('delete')."'");
 				$output .= write_message(_ACTIONSUCCESSFUL);
 			}
-			else if ($_GET['confirm'] == "no") $output .= write_message(_ACTIONCANCELLED);
+			else if(isset($_POST['confirm']) && $_POST['confirm'] == "no") $output .= write_message(_ACTIONCANCELLED);
 			else {
 			$output .= write_message(_CONFIRMDELETE."<br /><br />
-[ <a href=\"admin.php?action=news&confirm=yes&delete=$_GET[delete]\">"._YES."</a> | <a href=\"admin.php?action=news&confirm=no&delete=$_GET[delete]\">"._NO."</a> ]");
+[ ".ef_csrf_post_link("admin.php?action=news", _YES, array('confirm' => 'yes', 'delete' => ef_param('delete')))." | <a href=\"admin.php?action=news\">"._NO."</a> ]");
 			}
 		}
 		else if(isset($_GET["form"])) {

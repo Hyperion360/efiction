@@ -58,9 +58,11 @@ include("includes/storyform.php");
 			if($story['uid'] != USERUID && (is_array($coauthors) && !in_array(USERUID, $coauthors)) && !$story['rr']) accessDenied( );
 		}
 	}
-	else if(isADMIN && uLEVEL < 4 && isset($_GET['admin'])) {
+	else if(isADMIN && uLEVEL < 4 && (isset($_GET['admin']) || isset($_POST['admin']))) {
+		// Maintenance fork: the admin flag may arrive with a tokened POST
+		// form (the delete confirm); a GET alone still renders only.
 		$admin = 1;
-		$uid = isset($_GET['uid']) && isNumber($_GET['uid']) ? $_GET['uid'] : USERUID;
+		$uid = ef_param('uid') && isNumber(ef_param('uid')) ? ef_param('uid') : USERUID;
 	}
 	else {
 		$admin = 0;
@@ -891,7 +893,10 @@ function editstory($sid) {
 function delete( ) {
 	global $tpl, $store, $storiespath, $admin, $sid, $chapid, $logging;
 
-	$confirmed = isset($_GET['confirmed']) ? $_GET['confirmed'] : false;
+	// Maintenance fork: admins confirm through a tokened POST form (see the
+	// confirm block below); owners keep the GET link, which their own
+	// ownership gate covers.
+	$confirmed = isset($_GET['confirmed']) ? $_GET['confirmed'] : (isset($_POST['confirmed']) ? $_POST['confirmed'] : false);
 	if(!$sid && !$chapid) return write_error(_ERROR);
 	$output = "<div id=\"pagetitle\">".($chapid ? _DELETECHAPTERTITLE : _DELETESTORYTITLE)."</div>";
 	if($admin) {
@@ -904,6 +909,7 @@ function delete( ) {
 		$output .= "<center>"._ACTIONCANCELLED."  ".($admin ? _BACK2ADMIN : _BACK2ACCT)."</center>";
 	}
 	else if($confirmed == "yes") {
+		if(!empty($admin) && !ef_csrf_verify()) accessDenied( );
 		$storyquery = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_stories WHERE sid = '$sid' LIMIT 1");
 		$story = dbassoc($storyquery);
 		if($chapid) {
@@ -943,12 +949,12 @@ function delete( ) {
 	else {
 		if($chapid) {
 			$output .= write_message(_CONFIRMDELETE."<BR><BR>
-[ <a href=\"stories.php?action=delete&amp;confirmed=yes&amp;chapid=$chapid&amp;sid=$sid".(!empty($admin) ? "&amp;admin=1&amp;uid=".$uid : "")."\">"._YES."</a> | 
+[ ".(!empty($admin) ? ef_csrf_post_link("stories.php?action=delete", _YES, array('confirmed' => 'yes', 'chapid' => $chapid, 'sid' => $sid, 'admin' => '1', 'uid' => $uid)) : "<a href=\"stories.php?action=delete&amp;confirmed=yes&amp;chapid=$chapid&amp;sid=$sid\">"._YES."</a>")." | 
 				<a href=\"stories.php?action=delete&amp;confirmed=no\">"._NO."</a> ]");
 		}
 		else {
 			$output .= write_message(_DELETESTORY."<BR><BR>
-[ <a href=\"stories.php?action=delete&amp;confirmed=yes&amp;sid=$sid".(!empty($admin) ? "&amp;admin=1&amp;uid=".$uid : "")."\">"._YES."</a> | 
+[ ".(!empty($admin) ? ef_csrf_post_link("stories.php?action=delete", _YES, array('confirmed' => 'yes', 'sid' => $sid, 'admin' => '1', 'uid' => $uid)) : "<a href=\"stories.php?action=delete&amp;confirmed=yes&amp;sid=$sid\">"._YES."</a>")." | 
 				<a href=\"stories.php?action=delete&amp;confirmed=no\">"._NO."</a> ]");
 		}
 	}

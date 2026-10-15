@@ -25,16 +25,10 @@
 if(!defined("_CHARSET")) exit( );
 
 // Maintenance fork: every write on this panel (submit, preview, delete)
-// requires a session bound token. Forged requests are denied before any
-// query runs, and deletes are POST-only.
-$csrfKey = SITEKEY . '_custpages_csrf';
-if(empty($_SESSION[$csrfKey])) $_SESSION[$csrfKey] = bin2hex(random_bytes(32));
-$isWrite = isset($_POST['submit']) || isset($_POST['preview']) || isset($_POST['delete']);
-if($isWrite && (!isset($_POST['csrf']) || !hash_equals($_SESSION[$csrfKey], (string) $_POST['csrf']))) {
-	http_response_code(403);
-	exit('Forbidden');
-}
-$efCsrfField = "<input type='hidden' name='csrf' value='".htmlspecialchars($_SESSION[$csrfKey], ENT_QUOTES, 'UTF-8')."'>";
+// is gated by the central token check in admin.php, which verifies the
+// session token on every POST and injects the field into every rendered
+// form. Deletes remain POST-only.
+$efCsrfField = ef_csrf_field();
 
 	$output .= "<div id=\"pagetitle\">"._CUSTPAGES."</div>";
 if(isset($_POST['delete']) && isNumber($_POST['delete'])) {

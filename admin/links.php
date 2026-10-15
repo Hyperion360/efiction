@@ -23,8 +23,10 @@
 if(!defined("_CHARSET")) exit( );
 
 	$output .= "<div id=\"pagetitle\">"._LINKS."</div>";
-if(isset($_GET['delete']) && isNumber($_GET['delete'])) {
-	$result = dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_pagelinks WHERE link_id = $_GET[delete] LIMIT 1");
+// Maintenance fork: the delete executes only from a tokened POST (verified
+// centrally in admin.php); the list renders a POST button, not a GET link.
+if(isset($_POST['delete']) && isNumber($_POST['delete'])) {
+	$result = dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_pagelinks WHERE link_id = ".$_POST['delete']." LIMIT 1");
 	if($result) $output .= write_message(_ACTIONSUCCESSFUL);
 	else $output .= write_error(_ERROR);
 }
@@ -111,8 +113,8 @@ while($link = dbassoc($linkquery)) {
 	$tpl->assignGlobal($link['link_name'], "<a href=\""._BASEDIR.$link['link_url']."\" title=\"".$link['link_text']."\"".($link['link_target'] ? " target=\"_blank\"" : "").($current == $link['link_name'] ? " id=\"current\"" : "").">".$link['link_text']."</a>");
 	$pagelinks[$link['link_name']] = array("id" => $link['link_id'], "text" => $link['link_text'], "url" => _BASEDIR.$link['link_url'], "link" => "<a href=\""._BASEDIR.$link['link_url']."\" title=\"".$link['link_text']."\"".($link['link_target'] ? " target=\"_blank\"" : "").($current == $link['link_name'] ? " id=\"current\"" : "").">".$link['link_text']."</a>");
 	$output .= "<tr><td class=\"tblborder\"><a href=\""._BASEDIR.$link['link_url']."\" title=\"".$link['link_text']."\"".($link['link_target'] ? " target=\"_blank\"" : "").">".$link['link_text']."</a></td></td>
-		<td class=\"tblborder\"><a href=\"admin.php?action=links&amp;edit=".$link['link_id']."\">"._EDIT."</a> | 
-		<a href=\"admin.php?action=links&amp;delete=".$link['link_id']."\">"._DELETE."</a></td></tr>";
+		<td class=\"tblborder\"><a href=\"admin.php?action=links&amp;edit=".$link['link_id']."\">"._EDIT."</a> |
+		".ef_csrf_post_link("admin.php?action=links", _DELETE, array('delete' => $link['link_id']))."</td></tr>";
 }
 
 	if(!dbnumrows($linkquery)) $output .= "<tr><td class=\"tblborder\" colspan=\"2\" align=\"center\">"._NORESULTS."</td></tr>";

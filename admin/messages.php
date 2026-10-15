@@ -23,16 +23,12 @@
 if(!defined("_CHARSET")) exit( );
 
 // Maintenance fork: this editor interpolated $_GET['message'] straight into
-// its queries and accepted forged writes. Writes now require a session
-// bound token, and the message name is validated like every identifier.
-$csrfKey = SITEKEY . '_messages_csrf';
-if(empty($_SESSION[$csrfKey])) $_SESSION[$csrfKey] = bin2hex(random_bytes(32));
-if(isset($_POST['submit']) && (!isset($_POST['csrf']) || !hash_equals($_SESSION[$csrfKey], (string) $_POST['csrf']))) {
-	http_response_code(403);
-	exit('Forbidden');
-}
+// its queries and accepted forged writes. Writes are gated by the central
+// token check in admin.php (verified on every POST, field injected into
+// every rendered form), and the message name is validated like every
+// identifier.
 $messageName = (isset($_GET['message']) && preg_match('/^[a-z0-9_]{3,30}$/i', (string) $_GET['message'])) ? (string) $_GET['message'] : "";
-$efCsrfField = "<input type='hidden' name='csrf' value='".htmlspecialchars($_SESSION[$csrfKey], ENT_QUOTES, 'UTF-8')."'>";
+$efCsrfField = ef_csrf_field();
 
 	$output .= "<div id=\"pagetitle\">"._MESSAGESETTINGS."</div>";
 

@@ -29,8 +29,13 @@ $disableTiny = true;
 // Maintenance fork: panel deny paths (custom pages, messages) set the
 // response status after header.php has already produced output; buffering
 // keeps those status changes effective on hosts without whole-page output
-// buffering (the installer solved the same problem the same way).
-ob_start();
+// buffering (the installer solved the same problem the same way). The
+// buffer callback also appends the session CSRF token to every form
+// rendered in the admin area, so the central POST gate below can verify it
+// no matter which panel rendered the form.
+ob_start(function($html) {
+	return preg_replace('(<form\b[^>]*>)i', '$0'.ef_csrf_field(), $html);
+});
 
 include ("header.php");
 
@@ -44,6 +49,17 @@ else include_once("languages/en_admin.php");
 
 // check that user has permissions to perform this action before going further.  Otherwise kick 'em
 	if(!isADMIN) accessDenied( );
+	// Maintenance fork: every POST in the admin area carries the session
+	// token (the buffer callback injects it into every rendered form); a
+	// forged or tokenless POST is rejected before any panel runs.
+	if($_SERVER['REQUEST_METHOD'] === 'POST' && !ef_csrf_verify()) {
+		http_response_code(403);
+		$output = write_error("Invalid or missing security token. Go back, reload the page, and try again.");
+		$tpl->assign("output", $output);
+		$tpl->printToScreen( );
+		dbclose( );
+		exit( );
+	}
 	$adminquery = dbquery("SELECT categories FROM ".TABLEPREFIX."fanfiction_authorprefs WHERE uid = '".USERUID."' LIMIT 1");
 	list($admincats) = dbrow($adminquery);
 	if(empty($admincats)) $admincats = "0";
@@ -89,7 +105,7 @@ else include_once("languages/en_admin.php");
 		// admin home says once who maintains it and where the successor
 		// lives. Static English, no queries, no language-file changes;
 		// recorded in CHANGES-MAINTENANCE.md.
-		$output .= write_message("This is a maintenance release of eFiction, fixed and maintained by Danilo Stern-Sapad of Hyperion360 (https://danilosapad.com/): the same archive, repaired for current PHP, with no new features. The same maintainer developed Kiption, the successor written from the ground up as a much better, faster alternative with richer features. <a href=\"https://github.com/Hyperion360/kiption#migrating-from-efiction\">Migrate to Kiption</a> when you want it; this archive imports in one command and Kiption is MIT licensed. Host it yourself for free, or let <a href=\"https://kiption.cloud\">Kiption Cloud</a> host it for you.");
+		$output .= write_message("This is a maintenance release of eFiction, fixed and maintained by Danilo Stern-Sapad of Hyperion360 (https://danilosapad.com/): the same archive, repaired for current PHP, with no new features. The same maintainer developed Kiption, the successor written from the ground up as a much better, faster alternative with richer features. <a href=\"https://github.com/Hyperion360/kiption#migrating-from-efiction\">Migrate to Kiption</a> when you want it; this archive imports in one command and Kiption is MIT licensed. Host it yourself for free, or let <a href=\"https://kiption.com/cloud\">Kiption Cloud</a> host it for you.");
 	}	
 	$tpl->assign( "output", $output );
 	$tpl->printToScreen();

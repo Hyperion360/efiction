@@ -36,15 +36,15 @@ function build_cat_row($thiscat, $thiscatinfo) {
 	$subs = ""; $downlink = "&nbsp;"; $uplink = "&nbsp;";
 	$$thiscat = $catlist;
 	foreach($$thiscat as $cat => $catinfo) {
-		if($catinfo['pid'] == $thiscatinfo['pid'] && $thiscatinfo['order'] > $catinfo['order']) $uplink = "<a href=\"admin.php?action=categories&go=up&displayorder=".$thiscatinfo['order']."&parentcatid=".$thiscatinfo['pid']."\">$up</a>";
-		if($catinfo['pid'] == $thiscatinfo['pid'] && $thiscatinfo['order'] < $catinfo['order']) $downlink = "<a href=\"admin.php?action=categories&go=down&displayorder=".$thiscatinfo['order']."&parentcatid=".$thiscatinfo['pid']."\">$down</a>";
+		if($catinfo['pid'] == $thiscatinfo['pid'] && $thiscatinfo['order'] > $catinfo['order']) $uplink = ef_csrf_post_link("admin.php?action=categories", $up, array('go' => 'up', 'displayorder' => $thiscatinfo['order'], 'parentcatid' => $thiscatinfo['pid']));
+		if($catinfo['pid'] == $thiscatinfo['pid'] && $thiscatinfo['order'] < $catinfo['order']) $downlink = ef_csrf_post_link("admin.php?action=categories", $down, array('go' => 'down', 'displayorder' => $thiscatinfo['order'], 'parentcatid' => $thiscatinfo['pid']));
 		if($catinfo['pid'] == $thiscat) $subs .= build_cat_row($cat, $catinfo);
 	}
 	if($subs) $output .= "<img onclick=\"javascript:displayCatRows('$thiscat')\" name='c_$thiscat' alt='on' src='".($onpic ? $onpic : "images/row_on.gif")."'> ";
 	$output .= $thiscatinfo['name']."</td>\n
 	<td class='tblborder'>$downlink</td>\n
 	<td class='tblborder' width=\"13\">$uplink</td>\n
-	<td class='tblborder'><a href=\"admin.php?action=categories&cat=$thiscat\">"._EDIT."</a> | <a href=\"admin.php?action=categories&delete=$thiscat\">"._DELETE."</a> 
+	<td class='tblborder'><a href=\"admin.php?action=categories&cat=$thiscat\">"._EDIT."</a> | ".ef_csrf_post_link("admin.php?action=categories", _DELETE, array('delete' => $thiscat))." 
 			| <span class='label'>"._ADD.":</span> $space <a href=\"admin.php?action=categories&cat=new&subof=$thiscat\">"._SUBCATEGORY."</a>, <a href=\"admin.php?action=characters&do=addform&catid=$thiscat\">"._CHARACTERS."</a>,  <a href=\"admin.php?action=admins&category=$thiscat\">"._ADMINS."</a></td>\r\n</tr>$subs";
 	return $output;
 }
@@ -64,9 +64,11 @@ function relevelcategory($cat, $leveldown) {
 	$output .= "<div id=\"pagetitle\">"._CATEGORIES." </div>";
 	if(isset($_GET['catcounts'])) 
 		$output .= catcounts( );
-	if(isset($_GET["delete"]) && isNumber($_GET["delete"])) {
-		$catid = $_GET["delete"];
-		$confirm = isset($_GET['confirm']) ? $_GET['confirm'] : false;
+// Maintenance fork: the mutation executes only from a tokened POST (verified
+// centrally in admin.php); a GET renders the question or nothing.
+	if(ef_param("delete") && isNumber(ef_param("delete"))) {
+		$catid = ef_param("delete");
+		$confirm = isset($_POST['confirm']) ? $_POST['confirm'] : false;
 		if($confirm == "yes") {
 			$result = dbquery("SELECT displayorder,leveldown, parentcatid FROM ".TABLEPREFIX."fanfiction_categories WHERE catid = '$catid'");
 			$cat = dbassoc($result);
@@ -92,7 +94,7 @@ function relevelcategory($cat, $leveldown) {
 		else {
 			$showlist = 0;
 			$output .= write_message(_CONFIRMDELETE."<br /><br />
-[ <a href=\"admin.php?action=categories&delete=$catid&confirm=yes\">"._YES."</a> | <a href=\"admin.php?action=categories&delete=$catid&confirm=no\">"._NO."</a> ]");
+[ ".ef_csrf_post_link("admin.php?action=categories", _YES, array('confirm' => 'yes', 'delete' => $catid))." | <a href=\"admin.php?action=categories\">"._NO."</a> ]");
 		}
 	}
 	if (isset($_POST["submit"]) && !isset($_GET['catcounts'])) {
@@ -157,12 +159,12 @@ function relevelcategory($cat, $leveldown) {
 		$output .= write_message(_ACTIONSUCCESSFUL."<br /><br />"."<a href='admin.php?action=categories'>"._CONTINUE."</a>");
 	}
 	else {
-		if(isset($_GET["go"])) {
-			$displayorder = $_GET["displayorder"];
-			$oneabove =  ($_GET["go"] == "up" ?  $displayorder -1 : $displayorder + 1);
-			dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = '-1' WHERE displayorder = '$displayorder' AND parentcatid = '".$_GET['parentcatid']."'");
-			dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = '$displayorder' WHERE displayorder = '$oneabove' AND parentcatid = '".$_GET['parentcatid']."'");
-			dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = '$oneabove' WHERE displayorder = '-1' AND parentcatid = '".$_GET['parentcatid']."'");
+		if(isset($_POST["go"])) {
+			$displayorder = isNumber($_POST["displayorder"]) ? $_POST["displayorder"] : 0;
+			$oneabove =  ($_POST["go"] == "up" ?  $displayorder -1 : $displayorder + 1);
+			dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = '-1' WHERE displayorder = '$displayorder' AND parentcatid = '".$_POST['parentcatid']."'");
+			dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = '$displayorder' WHERE displayorder = '$oneabove' AND parentcatid = '".$_POST['parentcatid']."'");
+			dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = '$oneabove' WHERE displayorder = '-1' AND parentcatid = '".$_POST['parentcatid']."'");
 			$catlist = array( );
 			$catresults = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_categories ORDER BY leveldown, displayorder");
 			while($cat = dbassoc($catresults)) {

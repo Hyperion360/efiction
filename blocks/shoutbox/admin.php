@@ -14,10 +14,13 @@ else include_once("blocks/shoutbox/en.php");
 		$result = dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_shoutbox WHERE shout_datestamp < $range");
 		if($result) $output .= write_message(_ACTIONSUCCESSFUL);
 	}
-	if(isset($_GET['delete']) && isNumber($_GET['delete'])) {
-		$delete = dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_shoutbox WHERE shout_id = '$_GET[delete]' LIMIT 1");
+	// Maintenance fork: the delete executes only from a tokened POST
+	// (verified centrally in admin.php); the shout list renders a POST
+	// button instead of a GET link.
+	if(isset($_POST['delete']) && isNumber($_POST['delete'])) {
+		$delete = dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_shoutbox WHERE shout_id = '".$_POST['delete']."' LIMIT 1");
 		if($delete) $output .= write_message(_ACTIONSUCCESSFUL);
-	}	
+	}
 	// Maintenance fork: the shout id reached the UPDATE/SELECT raw; only a
 	// numeric id is accepted.
 	if(isset($_GET['shout_id']) && isNumber($_GET['shout_id'])) {
@@ -87,7 +90,7 @@ if($totalshouts > 0) {
 		$output .= "
 <div class='tblborder'><span class='sbname'>$shoutname</span><br />\n
 <span class='sbshout'>".stripslashes($shout['shout_message'])."</span><br />\n
-<span class='sbdatetime'>".date("$shoutdate", $shout['shout_datestamp'])." [<a href='admin.php?action=blocks&amp;admin=shoutbox&amp;delete=".$shout['shout_id']."' class='sbadmin'>"._DELETE."</a>] [<a href='admin.php?action=blocks&amp;admin=shoutbox&amp;shout_id=".$shout['shout_id']."' class='sbadmin'>"._EDIT."</a>]</span></div>\n<br />";
+<span class='sbdatetime'>".date("$shoutdate", $shout['shout_datestamp'])." [".ef_csrf_post_link("admin.php?action=blocks&admin=shoutbox", _DELETE, array('delete' => $shout['shout_id']))."] [<a href='admin.php?action=blocks&amp;admin=shoutbox&amp;shout_id=".$shout['shout_id']."' class='sbadmin'>"._EDIT."</a>]</span></div>\n<br />";
 	}
 	$output .= "</div>";
 	if($totalshouts > $itemsperpage) $output .= build_pagelinks("admin.php?action=blocks&amp;admin=shoutbox&amp;", $totalshouts, $offset);

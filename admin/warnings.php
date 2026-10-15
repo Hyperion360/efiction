@@ -29,9 +29,11 @@ function warnings( ) {
 	global $allowed_tags;
 
 	$output .= "<center><h4>"._WARNINGS."</h4></center>";
-	if($_GET["delete"]) {
-		$wid = $_GET["delete"];
-		if($_GET["confirm"] == "yes")
+// Maintenance fork: the mutation executes only from a tokened POST (verified
+// centrally in admin.php); a GET renders the question or nothing.
+	if(ef_param("delete") && isNumber(ef_param("delete"))) {
+		$wid = ef_param("delete");
+		if(isset($_POST["confirm"]) && $_POST["confirm"] == "yes")
 		{
 			$result5 = dbquery("SELECT warning FROM ".TABLEPREFIX."fanfiction_warnings WHERE wid = '$wid'");
 			$warnings = dbassoc($result5);
@@ -56,14 +58,14 @@ function warnings( ) {
 			dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_warnings where wid = '$wid'");
 			$output .= "<center>"._ACTIONSUCCESSFUL."</center>";
 		}
-		else if ($_GET["confirm"] == "no")
+		else if (isset($_POST["confirm"]) && $_POST["confirm"] == "no")
 		{
 			$output .= "<center>"._ACTIONCANCELLED."</center>";
 		}
 		else
 		{
 			$output .= "<center>"._CONFIRMDELETE."<br /><br />";
-			$output .= "[ <a href=\"admin.php?action=warnings&delete=$wid&confirm=yes\">"._YES."</a> | <a href=\"admin.php?action=warnings&delete=$wid&confirm=no\">"._NO."</a> ]</center>";
+			$output .= "[ ".ef_csrf_post_link("admin.php?action=warnings", _YES, array('confirm' => 'yes', 'delete' => $wid))." | <a href=\"admin.php?action=warnings\">"._NO."</a> ]</center>";
 			return $output;
 		}
 	}
@@ -96,7 +98,7 @@ function warnings( ) {
 			while ($warningresults = dbassoc($result))
 			{
 				$output .=  "<tr><td class=\"tblborder\">".$warningresults['warning'];
-				$output .=  "</td><td class=\"tblborder\"><a href=\"admin.php?action=warnings&warning=".$warningresults['wid']."\">"._EDIT."</a> | <a href=\"admin.php?action=warnings&delete=".$warningresults['wid']."\">"._DELETE."</td></tr>";
+				$output .=  "</td><td class=\"tblborder\"><a href=\"admin.php?action=warnings&warning=".$warningresults['wid']."\">"._EDIT."</a> | ".ef_csrf_post_link("admin.php?action=warnings", _DELETE, array('delete' => $warningresults['wid']))."</td></tr>";
 			}
 			$output .= "</table>";
 

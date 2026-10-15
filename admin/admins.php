@@ -27,23 +27,24 @@ if(!defined("_CHARSET")) exit( );
 	if(isset($_GET['do'])) $do = $_GET["do"];
 	else $do = false;
 	// Maintenance fork: the revoke uid reached the UPDATE/INSERT raw; only a
-	// numeric uid may revoke.
-	if(isset($_GET["revoke"]) && isNumber($_GET["revoke"])) {
-		if(isset($_GET["confirm"])) {
+	// numeric uid may revoke, and the mutation executes only from a tokened
+	// POST (verified centrally in admin.php) - a GET renders the question.
+	if(ef_param("revoke") && isNumber(ef_param("revoke"))) {
+		if(isset($_POST["confirm"])) {
 			$output .= "<div id='pagetitle'>"._REVOKEADMIN."</div>";
-			if($_GET["confirm"] == "yes" && USERUID != $_GET['revoke']) {
-				$result = dbquery("UPDATE ".TABLEPREFIX."fanfiction_authorprefs SET level = '0' WHERE uid = '".$_GET['revoke']."'");
+			if($_POST["confirm"] == "yes" && USERUID != ef_param('revoke')) {
+				$result = dbquery("UPDATE ".TABLEPREFIX."fanfiction_authorprefs SET level = '0' WHERE uid = '".ef_param('revoke')."'");
 				if($result) $output .=  write_message(_ACTIONSUCCESSFUL);
 				else {
-					$result = dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_authorprefs(`level`, `uid`) VALUES ('0', '".$_GET['revoke']."')"); // shouldn't be possible, but better safe than sorry.
+					$result = dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_authorprefs(`level`, `uid`) VALUES ('0', '".ef_param('revoke')."')"); // shouldn't be possible, but better safe than sorry.
 					$output .= write_error(_ERROR." "._TRYAGAIN);
 				}
 			}
-			else 
+			else
 			$output .= write_message(_ACTIONCANCELLED);
 		}
 		else {
-			$output .= write_message(_CONFIRMADMINREVOKE." [ <a href=\"admin.php?action=admins&confirm=yes&revoke=".$_GET['revoke']."\">"._YES."</a> | <a href=\"admin.php?action=admins&confirm=no&revoke=".$_GET['revoke']."\">"._NO."</a> ]</center>");
+			$output .= write_message(_CONFIRMADMINREVOKE." [ ".ef_csrf_post_link("admin.php?action=admins", _YES, array('confirm' => 'yes', 'revoke' => ef_param('revoke')))." | <a href=\"admin.php?action=admins\">"._NO."</a> ]</center>");
 		}
 	}
 	else if($do) {

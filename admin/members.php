@@ -41,12 +41,15 @@ function random_string ($charset_string, $length)
 }
 
 unset($countquery, $authorquery);
-$confirm = isset($_GET['confirm']) ? $_GET['confirm'] : false;
-	if(isset($_GET['lock']) && isNumber($_GET['lock'])) {
+// Maintenance fork: mutations now execute only from tokened POST forms
+// (verified centrally in admin.php); a GET renders the confirmation
+// question. Upstream executed on confirm=yes GET links.
+$confirm = isset($_POST['confirm']) ? $_POST['confirm'] : false;
+	if(ef_param('lock') && isNumber(ef_param('lock'))) {
 		$output .= "<div class='sectionheader'>"._LOCKMEM."</div>";
 		if($confirm == "yes") {
-			if(check_prefs($_GET['lock'])) dbquery("UPDATE ".TABLEPREFIX."fanfiction_authorprefs SET level = '-1' WHERE uid = '".$_GET['lock']."'");
-			else dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_authorprefs(`uid`, `level`) VALUES('".$_GET['lock']."', '-1')");
+			if(check_prefs(ef_param('lock'))) dbquery("UPDATE ".TABLEPREFIX."fanfiction_authorprefs SET level = '-1' WHERE uid = '".ef_param('lock')."'");
+			else dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_authorprefs(`uid`, `level`) VALUES('".ef_param('lock')."', '-1')");
 			$output .= write_message(_ACTIONSUCCESSFUL);
 		}
 		else if ($confirm == "no") {
@@ -54,14 +57,14 @@ $confirm = isset($_GET['confirm']) ? $_GET['confirm'] : false;
 		}
 		else {
 			$output .= write_message(_LOCKCONFIRM."<br /><br />
-						[ <a href=\"admin.php?action=members&confirm=yes&lock=".$_GET['lock']."\">"._YES."</a> | <a href=\"admin.php?action=members&confirm=no&lock=".$_GET['lock']."\">"._NO."</a> ]");
+						[ ".ef_csrf_post_link("admin.php?action=members", _YES, array('confirm' => 'yes', 'lock' => ef_param('lock')))." | <a href=\"admin.php?action=members\">"._NO."</a> ]");
 		}
 	}
-	else if(isset($_GET["unlock"]) && isNumber($_GET["unlock"])) {
+	else if(ef_param("unlock") && isNumber(ef_param("unlock"))) {
 		$output .= "<div class='sectionheader'>"._UNLOCK."</div>";
 		if($confirm == "yes")
 		{
-			dbquery("UPDATE ".TABLEPREFIX."fanfiction_authorprefs SET level = '0' WHERE uid = '".$_GET['unlock']."'");
+			dbquery("UPDATE ".TABLEPREFIX."fanfiction_authorprefs SET level = '0' WHERE uid = '".ef_param("unlock")."'");
 			$output .= write_message(_ACTIONSUCCESSFUL);
 		}
 		else if ($confirm == "no")
@@ -71,18 +74,18 @@ $confirm = isset($_GET['confirm']) ? $_GET['confirm'] : false;
 		else
 		{
 			$output .= write_message(_CONFIRMUNLOCK."<br /><br />
-						[ <a href=\"admin.php?action=members&confirm=yes&unlock=".$_GET['unlock']."\">"._YES."</a> | <a href=\"admin.php?action=members&confirm=no&unlock=".$_GET['unlock']."\">"._NO."</a> ]");
+						[ ".ef_csrf_post_link("admin.php?action=members", _YES, array('confirm' => 'yes', 'unlock' => ef_param('unlock')))." | <a href=\"admin.php?action=members\">"._NO."</a> ]");
 		}
-	
+
 	}
-	else if(isset($_GET["release"]) && isNumber($_GET['release'])) {
+	else if(ef_param("release") && isNumber(ef_param('release'))) {
 		$output .= "<div class='sectionheader'>"._RELEASED."</div>";
 		if(_AUTHORTABLE != TABLEPREFIX."fanfiction_authors as author") $output .= write_message("<br />"._FOREIGNAUTHORTABLE);
 		if($confirm == "yes")
 		{
 			include("includes/emailer.php");
-			dbquery("UPDATE "._AUTHORTABLE." SET admincreated = '0' WHERE "._UIDFIELD." = '".$_GET['release']."'");
-			$emailquery = dbquery("SELECT "._EMAILFIELD." as email, "._PENNAMEFIELD." as penname FROM "._AUTHORTABLE." WHERE uid = '".$_GET['release']."'");
+			dbquery("UPDATE "._AUTHORTABLE." SET admincreated = '0' WHERE "._UIDFIELD." = '".ef_param('release')."'");
+			$emailquery = dbquery("SELECT "._EMAILFIELD." as email, "._PENNAMEFIELD." as penname FROM "._AUTHORTABLE." WHERE uid = '".ef_param('release')."'");
 			$email = dbassoc($emailquery);
 			// Maintenance fork: crypto-random generation, matching the
 			// lost-password reset (upstream seeded mt_rand from microtime).
@@ -91,7 +94,7 @@ $confirm = isset($_GET['confirm']) ? $_GET['confirm'] : false;
 			for($i = 0; $i < 10; $i++) $pass .= $charset[random_int(0, strlen($charset) - 1)];
 			$encryppass = md5($pass);
 			//$headers = "From: $sitename\n";
-			dbquery("UPDATE "._AUTHORTABLE." SET "._PASSWORDFIELD." = '$encryppass' WHERE uid = '".$_GET['release']."'");
+			dbquery("UPDATE "._AUTHORTABLE." SET "._PASSWORDFIELD." = '$encryppass' WHERE uid = '".ef_param('release')."'");
 			
 			$subject = _SIGNUPSUBJECT;
 			
@@ -107,14 +110,14 @@ $confirm = isset($_GET['confirm']) ? $_GET['confirm'] : false;
 		}
 		else {
 			$output .= write_message(_CONFIRMAUTHORRELEASE."<br /><br />
-						[ <a href=\"admin.php?action=members&confirm=yes&release=$_GET[release]\">"._YES."</a> | <a href=\"admin.php?action=members&confirm=no&release=$_GET[release]\">"._NO."</a> ]");
+						[ ".ef_csrf_post_link("admin.php?action=members", _YES, array('confirm' => 'yes', 'release' => ef_param('release')))." | <a href=\"admin.php?action=members\">"._NO."</a> ]");
 		}
-	}	
-	else if(isset($_GET["revoke"]) && isNumber($_GET["revoke"])) {
+	}
+	else if(ef_param("revoke") && isNumber(ef_param("revoke"))) {
 		$output .= "<div class='sectionheader'>"._REVOKEVAL."</div>";
 		if($confirm == "yes")
 		{
-			dbquery("UPDATE ".TABLEPREFIX."fanfiction_authorprefs SET validated = '0' WHERE uid = '$_GET[revoke]'");
+			dbquery("UPDATE ".TABLEPREFIX."fanfiction_authorprefs SET validated = '0' WHERE uid = '".ef_param("revoke")."'");
 			$output .= write_message(_ACTIONSUCCESSFUL);
 		}
 		else if ($confirm == "no")
@@ -124,29 +127,29 @@ $confirm = isset($_GET['confirm']) ? $_GET['confirm'] : false;
 		else
 		{
 			$output .= write_message(_CONFIRMVALREVOKE."<br /><br />
-						[ <a href=\"admin.php?action=members&amp;confirm=yes&amp;revoke=$_GET[revoke]\">"._YES."</a> | <a href=\"admin.php?action=members&amp;confirm=no&amp;revoke=$_GET[revoke]\">"._NO."</a> ]");
+						[ ".ef_csrf_post_link("admin.php?action=members", _YES, array('confirm' => 'yes', 'revoke' => ef_param('revoke')))." | <a href=\"admin.php?action=members\">"._NO."</a> ]");
 		}
 	}
-	else if(isset($_GET["delete"]) && isNumber($_GET["delete"])) {
+	else if(ef_param("delete") && isNumber(ef_param("delete"))) {
 		$output .= "<div class='sectionheader'>"._DELETEUSER."</div>";
 		if(_AUTHORTABLE != TABLEPREFIX."fanfiction_authors as author") $output .= write_message("<br />"._FOREIGNAUTHORTABLE);
 		else if($confirm == "yes") {
 			include("includes/deletefunctions.php");
-			$output .= deleteUser($_GET['delete']);
+			$output .= deleteUser(ef_param('delete'));
 		}
 		else if ($confirm == "no") {
 			$output .= write_message(_ACTIONCANCELLED);
 		}
 		else {
 			$output .= write_message(_CONFIRMDELETE."<br /><br />
-						[ <a href=\"admin.php?action=members&confirm=yes&delete=$_GET[delete]\">"._YES."</a> | <a href=\"admin.php?action=members&confirm=no&delete=$_GET[delete]\">"._NO."</a> ]");
+						[ ".ef_csrf_post_link("admin.php?action=members", _YES, array('confirm' => 'yes', 'delete' => ef_param('delete')))." | <a href=\"admin.php?action=members\">"._NO."</a> ]");
 		}
 	}
-	else if(isset($_GET["validate"]) && isNumber($_GET["validate"])) {
+	else if(ef_param("validate") && isNumber(ef_param("validate"))) {
 		$output .= "<div class='sectionheader'>"._NONVALMEMBERS."</div>";
 		if($confirm == "yes") {
-			if(check_prefs($_GET['validate'])) dbquery("UPDATE ".TABLEPREFIX."fanfiction_authorprefs SET validated = '1' WHERE uid = '".$_GET['validate']."'");
-			else dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_authorprefs(`uid`, `validated`) VALUES('".$_GET['validate']."', '1')");
+			if(check_prefs(ef_param('validate'))) dbquery("UPDATE ".TABLEPREFIX."fanfiction_authorprefs SET validated = '1' WHERE uid = '".ef_param('validate')."'");
+			else dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_authorprefs(`uid`, `validated`) VALUES('".ef_param('validate')."', '1')");
 			$output .= write_message(_ACTIONSUCCESSFUL);
 		}
 		else if ($confirm == "no") {
@@ -154,7 +157,7 @@ $confirm = isset($_GET['confirm']) ? $_GET['confirm'] : false;
 		}
 		else {
 			$output .= write_message(_CONFIRMVALIDATE."<br /><br />
-						[ <a href=\"admin.php?action=members&amp;confirm=yes&amp;validate=".$_GET['validate']."\">"._YES."</a> | <a href=\"admin.php?action=members&confirm=no&amp;validate=".$_GET['validate']."\">"._NO."</a> ]");
+						[ ".ef_csrf_post_link("admin.php?action=members", _YES, array('confirm' => 'yes', 'validate' => ef_param('validate')))." | <a href=\"admin.php?action=members\">"._NO."</a> ]");
 		}
 	}
 	else if(isset($_GET["do"]) && $_GET['do'] == "add") {

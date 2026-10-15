@@ -26,9 +26,11 @@
 if(!defined("_CHARSET")) exit( );
 
 	$output .= "<div id='pagetitle'>"._CHARACTERS."</div>";
-	if(isset($_GET["delete"])) {
-		$charid = $_GET["delete"];
-		$confirm = isset($_GET['confirm']) ? $_GET['confirm'] : false;
+// Maintenance fork: the mutation executes only from a tokened POST (verified
+// centrally in admin.php); a GET renders the question or nothing.
+	if(ef_param("delete") && isNumber(ef_param("delete"))) {
+		$charid = ef_param("delete");
+		$confirm = isset($_POST['confirm']) ? $_POST['confirm'] : false;
 		if($confirm == "yes" && isNumber($charid))
 		{
 			$result5 = dbquery("SELECT catid, charname FROM ".TABLEPREFIX."fanfiction_characters WHERE charid = '$charid'");
@@ -55,7 +57,7 @@ if(!defined("_CHARSET")) exit( );
 		}
 		else {
 			$output .= write_message(_CONFIRMDELETE."<br /><br />
-				[ <a href=\"admin.php?action=characters&amp;delete=$charid&amp;confirm=yes\">"._YES."</a> | <a href=\"admin.php?action=characters&amp;delete=$charid&amp;confirm=no\">"._NO."</a> ]");
+				[ ".ef_csrf_post_link("admin.php?action=characters", _YES, array('confirm' => 'yes', 'delete' => $charid))." | <a href=\"admin.php?action=characters\">"._NO."</a> ]");
 		}
 	}		
 	if(isset($_GET['do']) && $_GET['do'] == "addform") {
@@ -129,7 +131,7 @@ if(!defined("_CHARSET")) exit( );
 		foreach($charlist as $char =>$charinfo) {
 			if($charinfo['catid'] == $cat) {
 				$output .= "<tr><td class=\"tblborder\">
-				<a href=\"browse.php?type=characters&amp;charid=$char\">".$charinfo['name']."</a></td><td class=\"tblborder\"><a href=\"admin.php?action=characters&amp;do=addform&amp;charid=$char&amp;cat=$cat\">"._EDIT."</a> | <a href=\"admin.php?action=characters&amp;delete=$char&amp;cat=$cat\">"._DELETE."</a></td></tr>";
+				<a href=\"browse.php?type=characters&amp;charid=$char\">".$charinfo['name']."</a></td><td class=\"tblborder\"><a href=\"admin.php?action=characters&amp;do=addform&amp;charid=$char&amp;cat=$cat\">"._EDIT."</a> | ".ef_csrf_post_link("admin.php?action=characters", _DELETE, array('delete' => $char))."</td></tr>";
 				$count++;
 			}
 		}	

@@ -30,8 +30,10 @@ $list = true;
 if(isset($_GET['type_id']) && isNumber($_GET['type_id'])) $type_id = $_GET['type_id'];
 if(isset($_GET['listtype']) && isNumber($_GET['listtype'])) $listtype = $_GET['listtype'];
 
-if(isset($_GET['delete'])) {
-	if($_GET['delete'] == "class" && isNumber($_GET["class"])) $thislist = dbquery("SELECT class_id FROM ".TABLEPREFIX."fanfiction_classes WHERE class_id = '".$_GET["class"]."'");
+// Maintenance fork: the mutation executes only from a tokened POST (verified
+// centrally in admin.php); a GET renders the question or nothing.
+if(isset($_POST['delete'])) {
+	if($_POST['delete'] == "class" && isset($_POST["class"]) && isNumber($_POST["class"])) $thislist = dbquery("SELECT class_id FROM ".TABLEPREFIX."fanfiction_classes WHERE class_id = '".$_POST["class"]."'");
 	else {
 		list($classname) = dbrow(dbquery("SELECT classtype_name FROM ".TABLEPREFIX."fanfiction_classtypes WHERE classtype_id = '$type_id'"));
 		dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_pagelinks WHERE link_name = '".$classname."_link' LIMIT 1");
@@ -88,7 +90,7 @@ if(isset($listtype)) {
 			</td>
 			<td class=\"tblborder\">
 				<a href=\"admin.php?action=classifications&amp;class=$class[class_id]\">"._EDIT."</a> |
-				<a href=\"admin.php?action=classifications&amp;delete=class&amp;class=$class[class_id]&amp;listtype=$listtype\">"._DELETE."</a>
+				".ef_csrf_post_link("admin.php?action=classifications", _DELETE, array('delete' => 'class', 'class' => $class['class_id'], 'listtype' => $listtype))."
 			</td></tr>";
 	}	
 	$output .= "<tr><td class=\"tblborder\" colspan=\"2\" style=\"text-align: center;\"><a href=\"admin.php?action=classifications&newitems=$listtype\">"._ADDNEWCLASSES."</a></td></tr></table>";
@@ -159,7 +161,7 @@ if($list) {
 			</td>
 			<td class=\"tblborder\">
 				<a href=\"admin.php?action=classifications&amp;type=$type[classtype_id]\">"._EDIT."</a> |
-				<a href=\"admin.php?action=classifications&amp;delete=type&amp;type_id=$type[classtype_id]\">"._DELETE."</a>
+				".ef_csrf_post_link("admin.php?action=classifications", _DELETE, array('delete' => 'type', 'type_id' => $type['classtype_id']))."
 			</td></tr>";
 	}	
 	$output .= "<tr><td class=\"tblborder\" colspan=\"2\" style=\"text-align: center;\"><a href=\"admin.php?action=classifications&type=new\">"._ADDNEWCLASSTYPE."</a></td></tr></table></div>";

@@ -25,9 +25,11 @@
 if(!defined("_CHARSET")) exit( );
 $output .= "<div id=\"pagetitle\">"._RATINGS."</div>";
 	$showlist = 1;
-	if(isset($_GET["delete"]) && isNumber($_GET["delete"])) {
-		$rid = $_GET["delete"];
-		$confirm = isset($_GET["confirm"]) ? $_GET["confirm"] : false;
+// Maintenance fork: the mutation executes only from a tokened POST (verified
+// centrally in admin.php); a GET renders the question or nothing.
+	if(ef_param("delete") && isNumber(ef_param("delete"))) {
+		$rid = ef_param("delete");
+		$confirm = isset($_POST["confirm"]) ? $_POST["confirm"] : false;
 		if($confirm == "yes")
 		{
 			$result5 = dbquery("SELECT rating FROM ".TABLEPREFIX."fanfiction_ratings WHERE rid = '$rid'");
@@ -44,7 +46,7 @@ $output .= "<div id=\"pagetitle\">"._RATINGS."</div>";
 		{
 			$showlist = 0;
 			$output .= write_message(_CONFIRMDELETE."<br /><br />
-[ <a href=\"admin.php?action=ratings&delete=$rid&confirm=yes\">"._YES."</a> | <a href=\"admin.php?action=ratings&delete=$rid&confirm=no\">"._NO."</a> ]");
+[ ".ef_csrf_post_link("admin.php?action=ratings", _YES, array('confirm' => 'yes', 'delete' => $rid))." | <a href=\"admin.php?action=ratings\">"._NO."</a> ]");
 		}
 	}
 	if (isset($_POST["submit"]) && ((isset($_GET['rid']) && isNumber($_GET['rid'])) || $_GET['rid'] == "new")) {
@@ -99,7 +101,7 @@ $output .= "<div id=\"pagetitle\">"._RATINGS."</div>";
 				$output .= "</td><td class=\"tblborder\">"._YES."";
 			else
 				$output .= "</td><td class=\"tblborder\">"._NO."";
-			$output .= "</td><td class=\"tblborder\"><a href=\"admin.php?action=ratings&rid=".$ratingresults['rid']."\">"._EDIT."</a> | <a href=\"admin.php?action=ratings&delete=".$ratingresults['rid']."\">"._DELETE."</td></tr>";
+			$output .= "</td><td class=\"tblborder\"><a href=\"admin.php?action=ratings&rid=".$ratingresults['rid']."\">"._EDIT."</a> | ".ef_csrf_post_link("admin.php?action=ratings", _DELETE, array('delete' => $ratingresults['rid']))."</td></tr>";
 		}
 		$output .= "<tr><td colspan=\"3\" align=\"center\" class=\"tblborder\"><a href=\"admin.php?action=ratings&rid=new\">"._ADDRAT."</a></td></tr></table>";
 	}

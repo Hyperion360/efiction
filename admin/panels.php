@@ -31,13 +31,15 @@ $paneltypes = array("A" => _ADMIN, "U" => _USERACCOUNT, "P" => _PROFILE, "F" => 
 // arithmetic below on PHP 8).
 if(isset($_GET['type']) && isset($paneltypes[$_GET['type']])) $type = $_GET['type'];
 else $type = false;
-if(!empty($_GET['go']) && $type && isset($_GET['order']) && isNumber($_GET['order']) && isset($_GET['panel']) && isNumber($_GET['panel'])) {
-	$go = $_GET['go'];
-	$order = $_GET['order'];
+// Maintenance fork: the mutation executes only from a tokened POST (verified
+// centrally in admin.php); a GET renders the question or nothing.
+if(!empty($_POST['go']) && $type && isset($_POST['order']) && isNumber($_POST['order']) && isset($_POST['panel']) && isNumber($_POST['panel'])) {
+	$go = $_POST['go'];
+	$order = $_POST['order'];
 	if($go == "up") $oneabove = $order - 1;
 	else $oneabove = $order + 1;
 	dbquery("UPDATE ".TABLEPREFIX."fanfiction_panels SET panel_order = '$order' WHERE panel_type = '$type' and panel_order = '$oneabove'");
-	dbquery("UPDATE ".TABLEPREFIX."fanfiction_panels SET panel_order = '$oneabove' WHERE panel_id = '".$_GET['panel']."'");
+	dbquery("UPDATE ".TABLEPREFIX."fanfiction_panels SET panel_order = '$oneabove' WHERE panel_id = '".$_POST['panel']."'");
 }
 if(!empty($_GET['edit'])) {
 	if(!empty($_POST['submit'])) {
@@ -128,8 +130,8 @@ else {
 		else {
 			if($panel['panel_hidden']) $output .= _HIDDEN;
 			else {
-				$output .= $count > 1 ? "<a href='admin.php?action=panels&amp;type=$type&amp;go=up&amp;panel=".$panel['panel_id'].(!empty($_GET['level']) ? "&amp;level=".$_GET['level'] : "")."&amp;order=".$panel['panel_order']."'>$up</a>" : "";
-				$output .= $count < $num ? "<a href='admin.php?action=panels&amp;type=$type&amp;go=down&amp;panel=".$panel['panel_id'].(!empty($_GET['level']) ? "&amp;level=".$_GET['level'] : "")."&amp;order=".$panel['panel_order']."'>$down</a>" : "";
+				$output .= $count > 1 ? ef_csrf_post_link("admin.php?action=panels&type=$type", $up, array('go' => 'up', 'panel' => $panel['panel_id'], 'order' => $panel['panel_order'])) : "";
+				$output .= $count < $num ? ef_csrf_post_link("admin.php?action=panels&type=$type", $down, array('go' => 'down', 'panel' => $panel['panel_id'], 'order' => $panel['panel_order'])) : "";
 			}
 		}
 		$output .= "</td><td class='tblborder'><a href='admin.php?action=panels&amp;edit=".$panel['panel_id']."'>"._EDIT."</a> | <a href='admin.php?action=panels&amp;delete=".$panel['panel_id']."'>"._DELETE."</a></td></tr>";

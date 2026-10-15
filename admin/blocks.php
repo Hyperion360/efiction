@@ -44,8 +44,10 @@ $content = "";
 		include("blocks/".$_GET['admin']."/admin.php");
 		save_blocks( $blocks );
 	}
-	if(isset($_GET['init'])) {
-		if(file_exists("blocks/".$_GET['init']."/init.php")) include("blocks/".$_GET['init']."/init.php");
+// Maintenance fork: the mutation executes only from a tokened POST (verified
+// centrally in admin.php); a GET renders the question or nothing.
+	if(isset($_POST['init']) && basename((string)$_POST['init']) === (string)$_POST['init']) {
+		if(file_exists("blocks/".basename((string)$_POST['init'])."/init.php")) include("blocks/".basename((string)$_POST['init'])."/init.php");
 		else return _ERROR;
 		save_blocks( $blocks );
 	}
@@ -86,7 +88,7 @@ if(empty($admin)) {
 					<option value=\"2\"".($blocks[$filename]['status'] == 2 ? " selected" : "").">"._INDEXONLY."</option>
 					</select></td>
 				<td class=\"tblborder\">".(file_exists("blocks/$filename/admin.php") ? "<a href=\"admin.php?action=blocks&admin=$filename\">"._OPTIONS."</a>" :  _NONE);
-			else $output .= "<td class=\"tblborder\" colspan=\"3\" align=\"center\"><a href=\"admin.php?action=blocks&init=$filename\">"._INITIALIZE."</a>";
+			else $output .= "<td class=\"tblborder\" colspan=\"3\" align=\"center\">".ef_csrf_post_link("admin.php?action=blocks", _INITIALIZE, array('init' => $filename));
 			$output .= "</td></tr>";
 			$x++;
 	}

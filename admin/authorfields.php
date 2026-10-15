@@ -27,9 +27,11 @@ if(!defined("_CHARSET")) exit( );
 $field = isset($_GET['field']) ? $_GET['field'] : false;
 $list = true;
 $fieldtypes = array("1" => _FIELDURL, "2" => _FIELDSELECT, "3" => _FIELDYESNO, "4" => _FIELDIDURL, "5" => _FIELDCUSTOM, "6" => _TEXT);
-if(!empty($_GET['delete'])) {
-	$delete = $_GET['delete'];
-	$confirm = isset($_GET['confirm']) ? $_GET['confirm'] : false;
+// Maintenance fork: the mutation executes only from a tokened POST (verified
+// centrally in admin.php); a GET renders the question or nothing.
+if(ef_param('delete')) {
+	$delete = ef_param('delete');
+	$confirm = isset($_POST['confirm']) ? $_POST['confirm'] : false;
 	if($confirm == "yes" && isNumber($delete)) {
 		$result = dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_authorfields WHERE field_id = '$delete' LIMIT 1");
 		if($result) $output .= write_message(_ACTIONSUCCESSFUL);
@@ -41,7 +43,7 @@ if(!empty($_GET['delete'])) {
 	}
 	else {
 		$output .= write_message(_CONFIRMDELETE."<br /><br />
-					[ <a href=\"admin.php?action=authorfields&amp;delete=$delete&amp;confirm=yes\">"._YES."</a> | <a href=\"admin.php?action=authorfields&amp;delete=$delete&amp;confirm=no\">"._NO."</a> ]");
+					[ ".ef_csrf_post_link("admin.php?action=authorfields", _YES, array('confirm' => 'yes', 'delete' => $delete))." | <a href=\"admin.php?action=authorfields\">"._NO."</a> ]");
 
 	}
 }
@@ -118,7 +120,7 @@ if($list) {
 	if(dbnumrows($fields) > 0) {
 		$output .= "<table class='tblborder' style='margin: 0 auto;'><tr><th class='tblborder'>"._NAME."</th><th class='tblborder'>"._STATUS."</th><th class='tblborder'>"._OPTIONS."</th></tr>";
 		while($field = dbassoc($fields)) {
-			$output .= "<tr><td class='tblborder'>".(empty($field['field_title']) ? $field['field_name'] : $field['field_title'])."</td><td class='tblborder' style='text-align: center;'>".($field['field_on'] ? _ON : _OFF)."</td><td class='tblborder'><a href='admin.php?action=authorfields&amp;edit=".$field['field_id']."'>"._EDIT."</a> | <a href='admin.php?action=authorfields&amp;delete=".$field['field_id']."'>"._DELETE."</a></td></tr>";
+			$output .= "<tr><td class='tblborder'>".(empty($field['field_title']) ? $field['field_name'] : $field['field_title'])."</td><td class='tblborder' style='text-align: center;'>".($field['field_on'] ? _ON : _OFF)."</td><td class='tblborder'><a href='admin.php?action=authorfields&amp;edit=".$field['field_id']."'>"._EDIT."</a> | ".ef_csrf_post_link("admin.php?action=authorfields", _DELETE, array('delete' => $field['field_id']))."</td></tr>";
 		}
 		$output .= "<tr><td class='tblborder' colspan='3' style='text-align: center;'><a href='admin.php?action=authorfields&amp;edit=new'>"._ADDNEWFIELD."</a></td></tr></table>";
 	}

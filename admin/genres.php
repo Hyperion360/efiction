@@ -24,9 +24,11 @@ function genres( ) {
 	global $allowed_tags;
 
 	$output .= "<center><h4>"._GENRES."</h4></center>";
-	if($_GET["delete"]) {
-		$gid = $_GET["delete"];
-		if($_GET["confirm"] == "yes")
+// Maintenance fork: the mutation executes only from a tokened POST (verified
+// centrally in admin.php); a GET renders the question or nothing.
+	if(ef_param("delete") && isNumber(ef_param("delete"))) {
+		$gid = ef_param("delete");
+		if(isset($_POST["confirm"]) && $_POST["confirm"] == "yes")
 		{
 			$result5 = dbquery("SELECT genre FROM ".TABLEPREFIX."fanfiction_genres WHERE gid = '$gid'") or die(_FATALERROR."Query: SELECT genre FROM ".TABLEPREFIX."fanfiction_genres WHERE gid = '$gid'<br />Error: (".mysql_errno( ).") ".mysql_error( ));
 			$genres = dbassoc($result5);
@@ -51,14 +53,14 @@ function genres( ) {
 			dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_genres where gid = '$gid'") or die(_FATALERROR."Query: DELETE FROM ".TABLEPREFIX."fanfiction_genres where gid = '$gid'<br />Error: (".mysql_errno( ).") ".mysql_error( ));
 			$output .= "<center>"._ACTIONSUCCESSFUL."</center>";
 		}
-		else if ($_GET["confirm"] == "no")
+		else if (isset($_POST["confirm"]) && $_POST["confirm"] == "no")
 		{
 			$output .= "<center>"._ACTIONCANCELLED."</center>";
 		}
 		else
 		{
 			$output .= "<center>"._CONFIRMDELETE."<br /><br />";
-			$output .= "[ <a href=\"admin.php?action=genres&amp;delete=$gid&amp;confirm=yes\">"._YES."</a> | <a href=\"admin.php?action=genres&delete=$gid&confirm=no\">"._NO."</a> ]</center>";
+			$output .= "[ ".ef_csrf_post_link("admin.php?action=genres", _YES, array('confirm' => 'yes', 'delete' => $gid))." | <a href=\"admin.php?action=genres\">"._NO."</a> ]</center>";
 			return $output;
 		}
 	}
@@ -91,7 +93,7 @@ function genres( ) {
 			while ($genreresults = dbassoc($result))
 			{
 				$output .= "<tr><td class=\"tblborder\">$genreresults[genre]";
-				$output .= "</td><td class=\"tblborder\"><a href=\"admin.php?action=genres&genre=$genreresults[gid]\">"._EDIT."</a> | <a href=\"admin.php?action=genres&delete=$genreresults[gid]\">"._DELETE."</td></tr>";
+				$output .= "</td><td class=\"tblborder\"><a href=\"admin.php?action=genres&genre=$genreresults[gid]\">"._EDIT."</a> | ".ef_csrf_post_link("admin.php?action=genres", _DELETE, array('delete' => $genreresults['gid']))."</td></tr>";
 			}
 			$output .= "</table>";
 

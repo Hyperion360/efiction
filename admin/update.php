@@ -24,7 +24,9 @@
 
 if(!defined("_CHARSET")) exit( );
 $version = explode(".", $version);
-$confirm = isset($_GET['confirm']) ? $_GET['confirm'] : false;
+// Maintenance fork: the database update executes only from a tokened POST
+// (verified centrally in admin.php); a GET renders the question.
+$confirm = isset($_POST['confirm']) ? $_POST['confirm'] : false;
 
 if($version[0] == 3 && $version[1] < 2) {
 if($confirm == "yes") {
@@ -130,7 +132,7 @@ else if($confirm == "no") {
 }
 else {
   	$output .= write_message("This update will perform some tasks on the database to better your site's performance.  You are advised to back up your database before starting! <br />
-Are you ready to update? <a href='admin.php?action=maintenance&maint=update&amp;confirm=yes'>"._YES."</a> "._OR." <a href='admin.php?action=maintenance&maint=update&amp;confirm=no'>"._NO."</a>");
+Are you ready to update? ".ef_csrf_post_link("admin.php?action=maintenance", _YES, array('maint' => 'update', 'confirm' => 'yes'))." "._OR." <a href='admin.php?action=maintenance&maint=update'>"._NO."</a>");
 }
 }
 else $output .= write_message(_ALREADYUPDATED);

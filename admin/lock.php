@@ -22,23 +22,25 @@
 
 	if(uLEVEL > 1) accessDenied( );
 	$do = $_GET["do"];
-	if(isset($_GET["unlock"]) && isNumber($_GET['unlock'])) {
+	// Maintenance fork: the unlock executes only from a tokened POST
+	// (verified centrally in admin.php); a GET renders the question.
+	if(ef_param("unlock") && isNumber(ef_param('unlock'))) {
 		$output .= "<div id=\"pagetitle\">"._UNLOCK."</div>";
-		if($_GET["confirm"] == "yes")
+		if(isset($_POST["confirm"]) && $_POST["confirm"] == "yes")
 		{
-			dbquery("UPDATE ".TABLEPREFIX."fanfiction_authors SET level = '0' WHERE uid = '".$_GET['unlock']."'");
+			dbquery("UPDATE ".TABLEPREFIX."fanfiction_authors SET level = '0' WHERE uid = '".ef_param('unlock')."'");
 			$output .= "<center>"._ACTIONSUCCESSFUL."</center>";
 		}
-		else if ($_GET["confirm"] == "no")
+		else if (isset($_POST["confirm"]) && $_POST["confirm"] == "no")
 		{
 			$output .= "<center>"._ACTIONCANCELLED."</center>";
 		}
 		else
 		{
 			$output .= "<div id=\"pagetitle\">"._CONFIRMUNLOCK."</div>";
-			$output .= "<center>[ <a href=\"admin.php?action=lock&confirm=yes&unlock=".$_GET['unlock']."\">"._YES."</a> | <a href=\"admin.php?action=lock&confirm=no&unlock=".$_GET['unlock']."\">"._NO."</a> ]</center>";
+			$output .= "<center>[ ".ef_csrf_post_link("admin.php?action=lock", _YES, array('confirm' => 'yes', 'unlock' => ef_param('unlock')))." | <a href=\"admin.php?action=lock\">"._NO."</a> ]</center>";
 		}
-	
+
 	}
 
 	else if(isset($do)) {

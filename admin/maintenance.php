@@ -24,7 +24,9 @@
 
 if(!defined("_CHARSET")) exit( );
 
-$maint = isset($_GET['maint']) ? $_GET['maint'] : false;
+// Maintenance fork: the mutation executes only from a tokened POST (verified
+// centrally in admin.php); a GET renders the question or nothing.
+$maint = isset($_POST['maint']) ? $_POST['maint'] : false;
 $output .= "<div id='pagetitle'>"._ARCHIVEMAINT."</div>";
 if($maint == "update") {
 	if(file_exists("admin/update.php")) include_once("admin/update.php");
@@ -200,16 +202,16 @@ else if($maint == "backup") {
 else {
 	$output .= "
 <ul>
-	<li><a href='admin.php?action=maintenance&amp;maint=reviews'>"._RECALCREVIEWS."</a> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_RECALCREVIEWS."</span></A></li>
-	<li><a href='admin.php?action=maintenance&amp;maint=stories'>"._RECALCSTORIES."</a> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_RECALCSTORIES."</span></A></li>
-	<li><a href='admin.php?action=maintenance&amp;maint=categories'>"._COUNTCATS."</a> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_CATCOUNTS."</span></A></li>
-	<li><a href='admin.php?action=maintenance&amp;maint=categories2'>"._CATORDER."</a> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_CATORDER."</span></A></li>
-	<li><a href='admin.php?action=maintenance&amp;maint=stats'>"._STATS."</a> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_STATS."</span></A></li>
-	<li><a href='admin.php?action=maintenance&amp;maint=panels'>"._PANELORDER."</a> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_PANELORDER."</span></A></li>
-	<li><a href='admin.php?action=maintenance&amp;maint=optimize'>"._OPTIMIZE."</a> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_OPTIMIZE."</span></A></li>
+	<li>".ef_csrf_post_link("admin.php?action=maintenance", _RECALCREVIEWS, array('maint' => 'reviews'))." <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_RECALCREVIEWS."</span></A></li>
+	<li>".ef_csrf_post_link("admin.php?action=maintenance", _RECALCSTORIES, array('maint' => 'stories'))." <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_RECALCSTORIES."</span></A></li>
+	<li>".ef_csrf_post_link("admin.php?action=maintenance", _COUNTCATS, array('maint' => 'categories'))." <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_CATCOUNTS."</span></A></li>
+	<li>".ef_csrf_post_link("admin.php?action=maintenance", _CATORDER, array('maint' => 'categories2'))." <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_CATORDER."</span></A></li>
+	<li>".ef_csrf_post_link("admin.php?action=maintenance", _STATS, array('maint' => 'stats'))." <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_STATS."</span></A></li>
+	<li>".ef_csrf_post_link("admin.php?action=maintenance", _PANELORDER, array('maint' => 'panels'))." <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_PANELORDER."</span></A></li>
+	<li>".ef_csrf_post_link("admin.php?action=maintenance", _OPTIMIZE, array('maint' => 'optimize'))." <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_OPTIMIZE."</span></A></li>
 	<li><a href='admin/backup.php' target='_new'>"._BACKUP."</a> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_BACKUP."</span></A></li>
 	<li><a href='admin/backup_utf8.php' target='_new'>"._BACKUP."</a> (UTF-8) <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_BACKUP."</span></A></li>
-	<li><a href='admin.php?action=maintenance&amp;maint=update'>"._UPDATE."</a>  <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_UPDATE."</span></A></li>
+	<li>".ef_csrf_post_link("admin.php?action=maintenance", _UPDATE, array('maint' => 'update'))."  <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_UPDATE."</span></A></li>
 </ul>";
 }
 ?>

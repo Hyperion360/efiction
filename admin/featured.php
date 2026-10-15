@@ -25,21 +25,21 @@
 
 if(!defined("_CHARSET")) exit( );
 
-	if(isset($_GET['retire']) && preg_match("/^[0-9]+$/", $_GET['retire']))
-		dbquery("UPDATE ".TABLEPREFIX."fanfiction_stories SET featured = 2 WHERE sid = ".$_GET['retire']);
-	if(isset($_GET['remove']) && preg_match("/^[0-9]+$/", $_GET['remove']))
-		dbquery("UPDATE ".TABLEPREFIX."fanfiction_stories SET featured = 0 WHERE sid = ".$_GET['remove']);
-	// Maintenance fork: retire and remove were numeric-validated but feature
-	// was not; all three now require a numeric sid.
-	if(isset($_GET['feature']) && isNumber($_GET['feature']))
-		dbquery("UPDATE ".TABLEPREFIX."fanfiction_stories SET featured = 1 WHERE sid = ".$_GET['feature']);
+// Maintenance fork: the mutation executes only from a tokened POST (verified
+// centrally in admin.php); a GET renders the question or nothing.
+	if(isset($_POST['retire']) && isNumber($_POST['retire']))
+		dbquery("UPDATE ".TABLEPREFIX."fanfiction_stories SET featured = 2 WHERE sid = ".$_POST['retire']);
+	if(isset($_POST['remove']) && isNumber($_POST['remove']))
+		dbquery("UPDATE ".TABLEPREFIX."fanfiction_stories SET featured = 0 WHERE sid = ".$_POST['remove']);
+	if(isset($_POST['feature']) && isNumber($_POST['feature']))
+		dbquery("UPDATE ".TABLEPREFIX."fanfiction_stories SET featured = 1 WHERE sid = ".$_POST['feature']);
 	$fresult = dbquery("SELECT stories.*, stories.title as title, "._PENNAMEFIELD." as penname, UNIX_TIMESTAMP(stories.updated) as updated, UNIX_TIMESTAMP(stories.date) as date FROM "._AUTHORTABLE.", ".TABLEPREFIX."fanfiction_stories as stories WHERE stories.featured > 0 AND stories.uid = "._UIDFIELD." ORDER BY stories.featured");
 	$output .= "<div id='pagetitle'>"._FEATUREDSTORIES."</div>";
 	if(!dbnumrows($fresult)) $output .= write_message(_NORESULTS);
 	else {
 		$output .= "<table class=\"tblborder\" cellpadding=\"5\" style=\"margin: 1em auto;\"><tr><th class=\"tblborder\">"._STORIES."</th><th class=\"tblborder\">"._STATUS."</th><th class=\"tblborder\">"._OPTIONS."</th></tr>";
 		while($story = dbassoc($fresult)) {
-			$output .= "<tr><td class=\"tblborder\"><a href=\"viewstory.php?sid=$story[sid]\">$story[title]</a> "._BY." <a href=\"viewuser.php?uid=$story[uid]\">$story[penname]</a></td><td class=\"tblborder\" align=\"center\">".($story['featured'] == 1 ? _ACTIVE : _RETIRED)."</td><td class=\"tblborder\" align=\"center\">".($story['featured'] == 1 ? "<a href=\"admin.php?action=featured&retire=$story[sid]\">"._RETIRE."</a>" : "<a href=\"admin.php?action=featured&feature=$story[sid]\">"._CURRENT."</a>")." | <a href=\"admin.php?action=featured&remove=$story[sid]\">"._REMOVE."</a></td></tr>";
+			$output .= "<tr><td class=\"tblborder\"><a href=\"viewstory.php?sid=$story[sid]\">$story[title]</a> "._BY." <a href=\"viewuser.php?uid=$story[uid]\">$story[penname]</a></td><td class=\"tblborder\" align=\"center\">".($story['featured'] == 1 ? _ACTIVE : _RETIRED)."</td><td class=\"tblborder\" align=\"center\">".($story['featured'] == 1 ? ef_csrf_post_link("admin.php?action=featured", _RETIRE, array('retire' => $story['sid'])) : ef_csrf_post_link("admin.php?action=featured", _CURRENT, array('feature' => $story['sid'])))." | ".ef_csrf_post_link("admin.php?action=featured", _REMOVE, array('remove' => $story['sid']))."</td></tr>";
 		}
 		$output .= "</table>";
 		$output .= write_message(_FEATUREDNOTE);

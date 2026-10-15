@@ -96,8 +96,10 @@ function descript($text) {
 	$text = preg_replace('#(&\#x)([0-9A-F]+);*#si', "", $text);
 
 	// remove any attribute starting with "on" or xmlns
-
-	$text = preg_replace('#(<[^>]+[\\"\'\s])(onmouseover|onmousedown|onmouseup|onmouseout|onmousemove|onclick|ondblclick|onload|xmlns)[^>]*>#iU', ">", $text);
+	// Maintenance fork: upstream listed nine on* handlers, missing onerror,
+	// onfocus, ontoggle and every later addition; the generic pattern strips
+	// all of them.
+	$text = preg_replace('#(<[^>]+[\\"\'\s])(on[a-z]+|xmlns)[^>]*>#iU', ">", $text);
 
 	// remove javascript: and vbscript: protocol
 	
@@ -405,6 +407,51 @@ function isNumber($num) {
 	if(empty($num)) return false;
 	if(!is_string($num)) return false;
 	return preg_match("/^[0-9]+$/", $num);
+}
+
+// Maintenance fork: shared per-session CSRF token. The custom-pages and
+// messages panels carried private copies of this logic; every write in the
+// admin area now runs through these helpers (admin.php verifies the token
+// on every POST and injects the field into every rendered form). The
+// installer ships its own stronger gate with the same helper names, so
+// these definitions yield to any already-loaded implementation.
+if(!function_exists('ef_csrf_token')) {
+function ef_csrf_token($scope = 'admin') {
+	$key = SITEKEY."_".$scope."_csrf";
+	if(empty($_SESSION[$key])) $_SESSION[$key] = bin2hex(random_bytes(32));
+	return $_SESSION[$key];
+}
+}
+if(!function_exists('ef_csrf_field')) {
+function ef_csrf_field($scope = 'admin') {
+	return "<input type='hidden' name='csrf' value='".htmlspecialchars(ef_csrf_token($scope), ENT_QUOTES)."'>";
+}
+}
+if(!function_exists('ef_csrf_verify')) {
+function ef_csrf_verify($scope = 'admin') {
+	$supplied = isset($_POST['csrf']) && is_string($_POST['csrf']) ? $_POST['csrf'] : '';
+	return $supplied !== '' && hash_equals(ef_csrf_token($scope), $supplied);
+}
+}
+// A link-shaped POST form for mutations that upstream triggered with GET
+// links; the injected/attached token makes it verifiable server-side.
+if(!function_exists('ef_csrf_post_link')) {
+function ef_csrf_post_link($actionurl, $label, $hidden = array()) {
+	$fields = ef_csrf_field();
+	foreach($hidden as $name => $value) $fields .= "<input type='hidden' name='".htmlspecialchars((string)$name, ENT_QUOTES)."' value='".htmlspecialchars((string)$value, ENT_QUOTES)."'>";
+	return "<form style=\"display:inline; margin:0;\" method=\"post\" action=\"".htmlspecialchars($actionurl, ENT_QUOTES)."\">".$fields."<input type=\"submit\" class=\"button\" value=\"".htmlspecialchars($label, ENT_QUOTES)."\"></form>";
+}
+}
+// Maintenance fork: a mutation parameter that legitimately arrives by GET
+// (the list-page link rendering the confirmation question) or by POST (the
+// tokened form executing it). Execution still requires the POST confirm and
+// the central token; isNumber still gates every id.
+if(!function_exists('ef_param')) {
+function ef_param($name) {
+	if(isset($_GET[$name]) && is_string($_GET[$name])) return $_GET[$name];
+	if(isset($_POST[$name]) && is_string($_POST[$name])) return $_POST[$name];
+	return false;
+}
 }
 
 // May be needed for sites that have bridged the authors table

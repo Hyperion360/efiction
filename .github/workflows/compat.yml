@@ -59,7 +59,7 @@ jobs:
       - name: Runtime probe
         run: php -d zend.assertions=1 -d assert.exception=1 tests/compat/runtime.php
       - name: Provision the test database
-        run: "$MYSQL_BIN" -h 127.0.0.1 -u root -pefcipassword -e "DROP DATABASE IF EXISTS efiction_test_ci; CREATE DATABASE efiction_test_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"
+        run: $MYSQL_BIN -h 127.0.0.1 -u root -pefcipassword -e "DROP DATABASE IF EXISTS efiction_test_ci; CREATE DATABASE efiction_test_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"
       - name: Database round trip
         run: php tests/compat/database.php
         env:
@@ -118,7 +118,7 @@ jobs:
       - name: Runtime probe
         run: php -d zend.assertions=1 -d assert.exception=1 tests/compat/runtime.php
       - name: Provision the test database
-        run: "$MYSQL_BIN" -h 127.0.0.1 -u root -pefcipassword -e "DROP DATABASE IF EXISTS efiction_test_ci; CREATE DATABASE efiction_test_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"
+        run: $MYSQL_BIN -h 127.0.0.1 -u root -pefcipassword -e "DROP DATABASE IF EXISTS efiction_test_ci; CREATE DATABASE efiction_test_ci CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci"
       - name: Database round trip
         run: php tests/compat/database.php
         env:

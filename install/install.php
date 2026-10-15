@@ -397,11 +397,17 @@ if($ef_action === "recover") {
 						$dump .= "INSERT INTO `".$t."` VALUES (".implode(", ", $values).");\n";
 					}
 				}
-				if(file_put_contents($backupdir."/db-backup.sql", $dump) !== false) $backupok = $backupok && true;
+				$dumpok = file_put_contents($backupdir."/db-backup.sql", $dump) !== false;
+				// Maintenance fork: config.php was destroyed even when every
+				// backup write had failed; destruction now requires at least
+				// one backup artifact to exist.
+				if(!$backupok && !$dumpok) {
+					ef_deny("Recovery denied. The pre-recovery backup could not be written to ".htmlspecialchars($backupdir, ENT_QUOTES)."; config.php was left in place. Check the directory permissions above the web root and retry.");
+				}
 				@unlink(ef_config_path());
 				@unlink(ef_state_path());
 				$output .= "<div id='pagetitle'>Recovery complete</div>";
-				$output .= write_message("The partial install was backed up to ".$backupdir." (config.php and db-backup.sql".($backupok ? "" : ", NOTE: the backup may be incomplete").") and config.php was removed. Start a fresh installation from step 1. Delete the backup once the new installation is verified.");
+				$output .= write_message("The partial install was backed up to ".$backupdir." (config.php and db-backup.sql".($backupok && $dumpok ? "" : ", NOTE: the backup may be incomplete").") and config.php was removed. Start a fresh installation from step 1. Delete the backup once the new installation is verified.");
 			}
 		}
 	}
@@ -422,7 +428,10 @@ if($ef_action === "recover") {
 			ef_deny("Installer authentication failed. The owner secret and session CSRF token are required to create the admin account.");
 		} else if(isset($_POST['submit'])) {
 			$penname = descript($_POST['newpenname']);
-			if((!$_POST['email']) && !isADMIN) $fail .= "<div style='text-align: center;'>"._EMAILREQUIRED." "._TRYAGAIN."</div>";
+			// Maintenance fork (PHP 8): isADMIN is never defined in the
+			// installer; evaluating it on this path was a fatal. An email is
+			// always required at install time.
+			if(empty($_POST['email'])) $fail .= "<div style='text-align: center;'>"._EMAILREQUIRED." "._TRYAGAIN."</div>";
 			if($penname && !preg_match("!^[a-z0-9_ ]{3,30}$!i", $penname)) $fail = "<div style='text-align: center;'>"._BADUSERNAME." "._TRYAGAIN."</div>";
 			// Maintenance fork (PHP 8.3+): the bare keys below are quoted.
 			// An undefined bare constant is a fatal on PHP 8.
@@ -1103,9 +1112,10 @@ $output .= write_message(_TABLEFAILED."<br /><br /><a href='install.php?step=4'>
 			}
 			if(!$ef_post_locked && $sect == "email" && isset($_POST['submit'])) {
 				$output .= "<div id=\"pagetitle\">"._SETTINGS."</div>";
-				$smtp_host = $_POST['newsmtp_host'];
-				$smtp_username = $_POST['newsmtp_username'];
-				$smtp_password = $_POST['newsmtp_password'];
+				// Maintenance fork: the three SMTP values reached the UPDATE raw.
+				$smtp_host = escapestring($_POST['newsmtp_host']);
+				$smtp_username = escapestring($_POST['newsmtp_username']);
+				$smtp_password = escapestring($_POST['newsmtp_password']);
 				$result = dbquery("UPDATE ".$settingsprefix."fanfiction_settings SET smtp_host = '$smtp_host', smtp_username = '$smtp_username', smtp_password = '$smtp_password' WHERE sitekey = '".SITEKEY."'");
 				if($result) {
 					$output .= write_message(_ACTIONSUCCESSFUL);

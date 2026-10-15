@@ -22,6 +22,12 @@
 
 $current = $_GET['page'];
 
+// Maintenance fork: the PHP-delimiter review notice below sets the response
+// status after header.php has already produced output; buffering the page
+// keeps that status change effective on hosts without whole-page output
+// buffering (the installer solved the same problem the same way).
+ob_start();
+
 include ("header.php");
 
 //make a new TemplatePower object

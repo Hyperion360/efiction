@@ -18,7 +18,9 @@ else include_once("blocks/shoutbox/en.php");
 		$delete = dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_shoutbox WHERE shout_id = '$_GET[delete]' LIMIT 1");
 		if($delete) $output .= write_message(_ACTIONSUCCESSFUL);
 	}	
-	if(isset($_GET['shout_id'])) {
+	// Maintenance fork: the shout id reached the UPDATE/SELECT raw; only a
+	// numeric id is accepted.
+	if(isset($_GET['shout_id']) && isNumber($_GET['shout_id'])) {
 		$output .= "<div class='sectionheader'>"._EDITSHOUT."</div>";
 		if(isset($_POST['submit'])) {
 			$shout_message = trim($_POST['shout_message']);

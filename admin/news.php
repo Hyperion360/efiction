@@ -31,7 +31,8 @@ if(uLevel > 3) accessDenied();
 			$author = addslashes(strip_tags(descript($_POST['author']), $allowed_tags));
 			$story = addslashes(strip_tags(descript($_POST['story']), $allowed_tags));
 			if($_GET['form'] == "new") $result = dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_news (title, author, story, time) VALUES ('$title', '$author', '$story', now())");
-			else $result = dbquery("UPDATE ".TABLEPREFIX."fanfiction_news SET title = '$title', author = '$author', story = '$story' WHERE nid = '$_POST[nid]'");
+			// Maintenance fork: the posted nid reached the WHERE clause raw.
+			else $result = dbquery("UPDATE ".TABLEPREFIX."fanfiction_news SET title = '$title', author = '$author', story = '$story' WHERE nid = '".(isset($_POST['nid']) && isNumber($_POST['nid']) ? $_POST['nid'] : 0)."'");
 			if($result) {
 				$output .= write_message(_ACTIONSUCCESSFUL);
 				unset($_GET['form']);

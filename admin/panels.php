@@ -26,15 +26,18 @@ if(!defined("_CHARSET")) exit( );
 
 $paneltypes = array("A" => _ADMIN, "U" => _USERACCOUNT, "P" => _PROFILE, "F" => _FAVOR, "S" => _SUBMISSIONS, "B" => _BROWSE, "L" => _10LISTS);
 
-if(isset($_GET['type'])) $type = $_GET['type'];
+// Maintenance fork: panel_type is whitelisted and order/panel ids are
+// validated before the reorder UPDATEs (a non-numeric order also fatals the
+// arithmetic below on PHP 8).
+if(isset($_GET['type']) && isset($paneltypes[$_GET['type']])) $type = $_GET['type'];
 else $type = false;
-if(!empty($_GET['go'])) {
+if(!empty($_GET['go']) && $type && isset($_GET['order']) && isNumber($_GET['order']) && isset($_GET['panel']) && isNumber($_GET['panel'])) {
 	$go = $_GET['go'];
 	$order = $_GET['order'];
 	if($go == "up") $oneabove = $order - 1;
 	else $oneabove = $order + 1;
 	dbquery("UPDATE ".TABLEPREFIX."fanfiction_panels SET panel_order = '$order' WHERE panel_type = '$type' and panel_order = '$oneabove'");
-	dbquery("UPDATE ".TABLEPREFIX."fanfiction_panels SET panel_order = '$oneabove' WHERE panel_id = '".$_GET['panel']."'");	
+	dbquery("UPDATE ".TABLEPREFIX."fanfiction_panels SET panel_order = '$oneabove' WHERE panel_id = '".$_GET['panel']."'");
 }
 if(!empty($_GET['edit'])) {
 	if(!empty($_POST['submit'])) {

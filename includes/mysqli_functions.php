@@ -30,6 +30,13 @@ function dbquery($query) {
 		accessDenied( _FATALERROR.(defined("isADMIN") && isADMIN ? "Query: ".$query."<br />Error: ".$e->getMessage() : ""));
 		exit( );
 	}
+	// Maintenance fork: with mysqli error reporting disabled (or on PHP 8.0),
+	// a failed query returns false instead of throwing; route that through
+	// the same guard so no caller ever receives a false result.
+	if($result === false) {
+		accessDenied( _FATALERROR.(defined("isADMIN") && isADMIN ? "Query: ".$query : ""));
+		exit( );
+	}
 	return $result;
 }
 

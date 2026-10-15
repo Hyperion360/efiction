@@ -164,9 +164,10 @@ if(isset($_POST['submit'])) {
 		$result = dbquery("UPDATE ".$settingsprefix."fanfiction_settings SET alertson = '$alertson', disablepopups = '$disablepopups', agestatement = '$agestatement', pwdsetting = '$pwdsetting' WHERE sitekey ='".SITEKEY."'");
 	}
 	else if($sect == "email") {
-		$smtp_host = $_POST['newsmtp_host'];
-		$smtp_username = $_POST['newsmtp_username'];
-		$smtp_password = $_POST['newsmtp_password'];
+		// Maintenance fork: the three SMTP values reached the UPDATE raw.
+		$smtp_host = escapestring($_POST['newsmtp_host']);
+		$smtp_username = escapestring($_POST['newsmtp_username']);
+		$smtp_password = escapestring($_POST['newsmtp_password']);
 		$result = dbquery("UPDATE ".$settingsprefix."fanfiction_settings SET smtp_host = '$smtp_host', smtp_username = '$smtp_username', smtp_password = '$smtp_password' WHERE sitekey ='".SITEKEY."'");
 	}
 	if($result) {

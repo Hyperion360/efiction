@@ -29,7 +29,9 @@ if(!defined("_CHARSET")) exit( );
 		dbquery("UPDATE ".TABLEPREFIX."fanfiction_stories SET featured = 2 WHERE sid = ".$_GET['retire']);
 	if(isset($_GET['remove']) && preg_match("/^[0-9]+$/", $_GET['remove']))
 		dbquery("UPDATE ".TABLEPREFIX."fanfiction_stories SET featured = 0 WHERE sid = ".$_GET['remove']);
-	if(isset($_GET['feature']))
+	// Maintenance fork: retire and remove were numeric-validated but feature
+	// was not; all three now require a numeric sid.
+	if(isset($_GET['feature']) && isNumber($_GET['feature']))
 		dbquery("UPDATE ".TABLEPREFIX."fanfiction_stories SET featured = 1 WHERE sid = ".$_GET['feature']);
 	$fresult = dbquery("SELECT stories.*, stories.title as title, "._PENNAMEFIELD." as penname, UNIX_TIMESTAMP(stories.updated) as updated, UNIX_TIMESTAMP(stories.date) as date FROM "._AUTHORTABLE.", ".TABLEPREFIX."fanfiction_stories as stories WHERE stories.featured > 0 AND stories.uid = "._UIDFIELD." ORDER BY stories.featured");
 	$output .= "<div id='pagetitle'>"._FEATUREDSTORIES."</div>";

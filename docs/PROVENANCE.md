@@ -4,7 +4,7 @@ This document records where this fork's code came from and how the import was ve
 
 ## What this is
 
-An unofficial maintenance fork of the eFiction 3.5.5 stable line, published by Danilo Stern-Sapad (https://danilosapad.com/) on behalf of Hyperion360 Inc. It is not affiliated with the original eFiction maintainers. The repairs and maintenance are his work; he also developed the successor, Kiption (https://github.com/Hyperion360/kiption), from the ground up. The scope is compatibility repair for PHP 8.3/8.4 and current MySQL/MariaDB, plus fixes for the security defects listed in CHANGES-MAINTENANCE.md.
+An unofficial maintenance fork of the eFiction 3.5.5 stable line, published by [Danilo Stern-Sapad](https://danilosapad.com/) on behalf of [Hyperion360](https://hyperion360.com/) Inc. It is not affiliated with the original eFiction maintainers. The repairs and maintenance are his work; he also developed the successor, Kiption (https://github.com/Hyperion360/kiption), from the ground up. The scope is compatibility repair for PHP 8.3/8.4 and current MySQL/MariaDB, plus fixes for the security defects listed in CHANGES-MAINTENANCE.md.
 
 ## Upstream identification
 
@@ -40,4 +40,4 @@ The upstream tree is distributed under the GNU General Public License, version 2
 
 ## Contact
 
-Danilo Stern-Sapad, https://danilosapad.com/, on behalf of Hyperion360 Inc, https://hyperion360.com/. Maintenance fork questions: see README.md.
+[Danilo Stern-Sapad](https://danilosapad.com/), on behalf of [Hyperion360](https://hyperion360.com/) Inc. Maintenance fork questions: see README.md.

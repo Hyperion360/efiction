@@ -4,7 +4,7 @@
 
 eFiction is Copyright (c) 2007 by Tammy Keefer, based on eFiction 1.1, Copyright (C) 2003 by Rebecca Smallwood. Upstream sources: http://efiction.sourceforge.net/ and https://github.com/eFiction/v3_stable. eFiction is licensed under the GNU General Public License, version 2 or later. See LICENSE and the notice in README.txt, which is retained unmodified.
 
-This maintenance fork is fixed and maintained by Danilo Stern-Sapad (https://danilosapad.com/) on behalf of Hyperion360 Inc (https://hyperion360.com/). He is the author of every repair listed in CHANGES-MAINTENANCE.md, and he developed the successor, Kiption (https://github.com/Hyperion360/kiption), written from the ground up as a much better, faster alternative with richer features. The fork is unofficial and is not affiliated with the original eFiction maintainers.
+This maintenance fork is fixed and maintained by [Danilo Stern-Sapad](https://danilosapad.com/) on behalf of [Hyperion360](https://hyperion360.com/) Inc. He is the author of every repair listed in CHANGES-MAINTENANCE.md, and he developed the successor, Kiption (https://github.com/Hyperion360/kiption), written from the ground up as a much better, faster alternative with richer features. The fork is unofficial and is not affiliated with the original eFiction maintainers.
 
 ## Bundled third-party components
 

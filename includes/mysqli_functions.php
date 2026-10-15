@@ -41,11 +41,15 @@ function dbquery($query) {
 		$result = $dbconnect->query($query);
 	} catch (mysqli_sql_exception $e) {
 		// Maintenance fork: accessDenied lives in corefunctions, which early
-		// bootstrappers (login.php) have not loaded yet; fail with a plain
-		// 500 instead of a fatal about the missing function.
+		// bootstrappers (login.php, the database harness) have not loaded
+		// yet; fail with a controlled, CATCHABLE Error carrying a 500
+		// status. Throwing (not exiting) preserves the pre-guard contract:
+		// callers that wrap dbquery in try/catch - like
+		// tests/compat/database.php's leak probe - survive the failure and
+		// assert no SQL text reached the output.
 		if(!function_exists("accessDenied")) {
-			http_response_code(500);
-			exit("A database error occurred.");
+			if(!headers_sent()) http_response_code(500);
+			throw new Error("A database error occurred before the error handler was loaded.");
 		}
 		accessDenied( _FATALERROR.(defined("isADMIN") && isADMIN ? "Query: ".$query."<br />Error: ".$e->getMessage() : ""));
 		exit( );
@@ -55,8 +59,8 @@ function dbquery($query) {
 	// the same guard so no caller ever receives a false result.
 	if($result === false) {
 		if(!function_exists("accessDenied")) {
-			http_response_code(500);
-			exit("A database error occurred.");
+			if(!headers_sent()) http_response_code(500);
+			throw new Error("A database error occurred before the error handler was loaded.");
 		}
 		accessDenied( _FATALERROR.(defined("isADMIN") && isADMIN ? "Query: ".$query : ""));
 		exit( );

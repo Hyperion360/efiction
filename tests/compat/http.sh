@@ -287,7 +287,10 @@ if [ "$MODE" = "fresh" ]; then
 	MARKER_SHA=$("$PHP_BIN" -r '$d = json_decode(file_get_contents($argv[1]), true); echo $d["config_sha256"] ?? "missing";' "$WORK/efiction-install-state.json")
 	check "state marker carries the config hash" [ "$CONFIG_SHA" = "$MARKER_SHA" ]
 	perms=$(stat -c '%a' "$WEB/config.php" 2>/dev/null || stat -f '%Lp' "$WEB/config.php")
-	check "config.php is not world writable ($perms)" sh -c '[ "$(( 8#'"$perms"' & 8#22 ))" -eq 0 ]'
+	case "$perms" in
+		[0-7]*) check "config.php is not world writable ($perms)" [ "$(( 0$perms & 022 ))" -eq 0 ] ;;
+		*) check "config.php permission string parses (got: $perms)" false ;;
+	esac
 
 	# GET mutation attempt: the old GET install=automatic created tables and
 	# wrote config; a GET must now render status only. Probed here because a

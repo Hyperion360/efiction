@@ -103,8 +103,8 @@ jobs:
       EF_DB_ADMIN_USER: root
       EF_DB_ADMIN_PASSWORD: efcipassword
       PHP_BIN: php
-      MYSQL_BIN: mariadb
-      MYSQLDUMP_BIN: mariadb-dump
+      MYSQL_BIN: mysql
+      MYSQLDUMP_BIN: mysqldump
     steps:
       - uses: actions/checkout@v4
         with:

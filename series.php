@@ -307,13 +307,17 @@ if($add == "stories") {
 if($action == "delete") {
 	global $seriesid;
 
-	$confirmed = isset($_GET["confirmed"]) ? $_GET['confirmed'] : false;
+	// Maintenance fork: the confirmation executes only from a tokened POST
+	// (the ownership gate runs inside the viewer's own session, so a GET
+	// link was forgeable).
+	$confirmed = isset($_GET["confirmed"]) ? $_GET['confirmed'] : (isset($_POST["confirmed"]) ? $_POST["confirmed"] : false);
 	$output = "<div id=\"pagetitle\">".(!empty($inorder) ? _REMOVEFROM : _DELETESERIES)."</div>";
 
 	if($confirmed == "no") {
 		$output .=  write_message(_ACTIONCANCELLED);
 	}
 	else if($confirmed == "yes" && $seriesid) {
+		if(!ef_csrf_verify()) accessDenied( );
 		if(!empty($inorder)) {
 			$info = dbquery("SELECT inorder, subseriesid, sid FROM ".TABLEPREFIX."fanfiction_inseries WHERE seriesid = '$seriesid' AND inorder = '$inorder' LIMIT 1");
 			list($inorder, $subseriesid, $sid) = dbrow($info);
@@ -335,11 +339,11 @@ if($action == "delete") {
 			$seriesid = false;
 		}
 	}
-	else {
-		$output .= write_message((!empty($inorder) ? _CONFIRMREMOVE : _CONFIRMDELETE)."<br /><br />[ <a href=\"series.php?action=delete&amp;confirmed=yes&amp;seriesid=$seriesid".(!empty($inorder) ? "&amp;inorder=$inorder" : "")."\">"._YES."</a> | 
-			<a href=\"series.php?action=delete&amp;confirmed=no\">"._NO."</a> ]");
-		$showlist = false;
-	}
+		else {
+			$output .= write_message((!empty($inorder) ? _CONFIRMREMOVE : _CONFIRMDELETE)."<br /><br />[ ".ef_csrf_post_link("series.php?action=delete", _YES, array('confirmed' => 'yes', 'seriesid' => $seriesid) + (!empty($inorder) ? array('inorder' => $inorder) : array()))." |
+				<a href=\"series.php?action=delete&amp;confirmed=no\">"._NO."</a> ]");
+			$showlist = false;
+		}
 }
 if($showlist) {
 	$go = isset($_GET['go']) ? $_GET['go'] : false;

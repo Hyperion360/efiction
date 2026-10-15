@@ -41,7 +41,9 @@ $content = "";
 
 	if($admin) {
 		$output .= "<div id='pagetitle'>"._ADMIN." - ".(isset($blocks[$_GET['admin']]['title']) ? $blocks[$_GET['admin']]['title'] : "")."</div>";
-		include("blocks/".$_GET['admin']."/admin.php");
+		// Maintenance fork: same basename containment as the init branch.
+		if(basename((string)$_GET['admin']) !== (string)$_GET['admin']) accessDenied( );
+		include("blocks/".basename((string)$_GET['admin'])."/admin.php");
 		save_blocks( $blocks );
 	}
 // Maintenance fork: the mutation executes only from a tokened POST (verified

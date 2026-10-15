@@ -909,7 +909,10 @@ function delete( ) {
 		$output .= "<center>"._ACTIONCANCELLED."  ".($admin ? _BACK2ADMIN : _BACK2ACCT)."</center>";
 	}
 	else if($confirmed == "yes") {
-		if(!empty($admin) && !ef_csrf_verify()) accessDenied( );
+		// Maintenance fork: the ownership gate runs inside the viewer's own
+		// session, so it is no CSRF protection; every delete confirmation
+		// carries the token (admins and owners alike).
+		if(!ef_csrf_verify()) accessDenied( );
 		$storyquery = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_stories WHERE sid = '$sid' LIMIT 1");
 		$story = dbassoc($storyquery);
 		if($chapid) {
@@ -949,12 +952,12 @@ function delete( ) {
 	else {
 		if($chapid) {
 			$output .= write_message(_CONFIRMDELETE."<BR><BR>
-[ ".(!empty($admin) ? ef_csrf_post_link("stories.php?action=delete", _YES, array('confirmed' => 'yes', 'chapid' => $chapid, 'sid' => $sid, 'admin' => '1', 'uid' => $uid)) : "<a href=\"stories.php?action=delete&amp;confirmed=yes&amp;chapid=$chapid&amp;sid=$sid\">"._YES."</a>")." | 
+[ ".ef_csrf_post_link("stories.php?action=delete", _YES, array('confirmed' => 'yes', 'chapid' => $chapid, 'sid' => $sid) + (!empty($admin) ? array('admin' => '1', 'uid' => $uid) : array()))." | 
 				<a href=\"stories.php?action=delete&amp;confirmed=no\">"._NO."</a> ]");
 		}
 		else {
 			$output .= write_message(_DELETESTORY."<BR><BR>
-[ ".(!empty($admin) ? ef_csrf_post_link("stories.php?action=delete", _YES, array('confirmed' => 'yes', 'sid' => $sid, 'admin' => '1', 'uid' => $uid)) : "<a href=\"stories.php?action=delete&amp;confirmed=yes&amp;sid=$sid\">"._YES."</a>")." | 
+[ ".ef_csrf_post_link("stories.php?action=delete", _YES, array('confirmed' => 'yes', 'sid' => $sid) + (!empty($admin) ? array('admin' => '1', 'uid' => $uid) : array()))." | 
 				<a href=\"stories.php?action=delete&amp;confirmed=no\">"._NO."</a> ]");
 		}
 	}

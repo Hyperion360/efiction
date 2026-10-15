@@ -17,6 +17,19 @@ function dbconnect($dbhost, $dbuser, $dbpass, $dbname ) {
 }
 
 
+// Maintenance fork: a numeric per-address key for the log-based rate
+// limits. INET_ATON is NULL for IPv6 addresses, which left throttles inert
+// for IPv6 clients; IPv4 keeps the INET_ATON-compatible value and IPv6
+// falls back to a CRC32 key. This file loads before corefunctions in the
+// early bootstrap (login.php), so the helper lives here.
+if(!function_exists('ef_ip_log_key')) {
+function ef_ip_log_key($ip) {
+	$ip = (string) $ip;
+	if(filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) return sprintf('%u', ip2long($ip));
+	return sprintf('%u', crc32($ip));
+}
+}
+
 function dbquery($query) {
 	global $debug, $headerSent, $dbconnect;
 	if($debug && $headerSent) echo "<!-- $query -->\n";

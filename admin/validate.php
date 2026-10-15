@@ -35,7 +35,7 @@ function preview_story($stories) {
 		else $tpl = new TemplatePower(_BASEDIR."default_tpls/viewstory.tpl");
 		$tpl->prepare( );			
 		include("includes/storyblock.php");
-		$adminlinks = "<div class=\"adminoptions\"><span class='label'>"._ADMINOPTIONS.":</span> <a href=\"admin.php?action=validate&amp;sid=$stories[sid]&amp;chapid=$stories[chapid]&amp;validate=yes\">"._VALIDATE."</a> | "._EDIT." - <a href=\"stories.php?action=editstory&amp;sid=$stories[sid]&amp;admin=1\">"._STORY."</a> "._OR." <a href=\"stories.php?action=editchapter&amp;chapid=$stories[chapid]&amp;admin=1\">"._CHAPTER."</a> | "._DELETE." - <a href=\"stories.php?action=delete&amp;sid=$stories[sid]\">"._STORY."</a> "._OR." <a href=\"stories.php?action=delete&amp;chapid=$stories[chapid]&amp;sid=$stories[sid]&amp;admin=1&amp;uid=$stories[uid]\">"._CHAPTER."</a> | <a href=\"javascript:pop('admin.php?action=yesletter&amp;uid=$stories[uid]&amp;chapid=$stories[chapid]', 400, 350, 'yes')\">"._YESLETTER."</a> | <a href=\"javascript:pop('admin.php?action=noletter&amp;uid=$stories[uid]&amp;chapid=$stories[chapid]',400, 350, 'yes')\">"._NOLETTER."</a></div>";
+		$adminlinks = "<div class=\"adminoptions\"><span class='label'>"._ADMINOPTIONS.":</span> ".ef_csrf_post_link("admin.php?action=validate&sid=".$stories['sid']."&chapid=".$stories['chapid'], _VALIDATE, array('validate' => 'yes'))." | "._EDIT." - <a href=\"stories.php?action=editstory&amp;sid=$stories[sid]&amp;admin=1\">"._STORY."</a> "._OR." <a href=\"stories.php?action=editchapter&amp;chapid=$stories[chapid]&amp;admin=1\">"._CHAPTER."</a> | "._DELETE." - <a href=\"stories.php?action=delete&amp;sid=$stories[sid]\">"._STORY."</a> "._OR." <a href=\"stories.php?action=delete&amp;chapid=$stories[chapid]&amp;sid=$stories[sid]&amp;admin=1&amp;uid=$stories[uid]\">"._CHAPTER."</a> | <a href=\"javascript:pop('admin.php?action=yesletter&amp;uid=$stories[uid]&amp;chapid=$stories[chapid]', 400, 350, 'yes')\">"._YESLETTER."</a> | <a href=\"javascript:pop('admin.php?action=noletter&amp;uid=$stories[uid]&amp;chapid=$stories[chapid]',400, 350, 'yes')\">"._NOLETTER."</a></div>";
 		$tpl->assign("adminlinks", $adminlinks);
 		if($stories['inorder'] == 1 && !empty($stories['storynotes'])) {
 			$tpl->gotoBlock("_ROOT");
@@ -74,7 +74,9 @@ function preview_story($stories) {
 }
 
 	$output .= "<div id='pagetitle'>"._VIEWSUBMITTED."</div>";
-	if(isset($_GET['validate']) && $_GET['validate'] == "yes") {
+	// Maintenance fork: the validation executes only from a tokened POST
+	// (verified centrally in admin.php); the GET renders the preview.
+	if(isset($_POST['validate']) && $_POST['validate'] == "yes") {
 		// Maintenance fork: these statements re-read the raw superglobal
 		// although header.php already validates $chapid; the validated
 		// variable is used instead.

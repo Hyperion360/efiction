@@ -49,7 +49,7 @@ if(isMEMBER) accessDenied( );
 			// Maintenance fork: a rate limit on the existing LP log rows (no
 			// schema change) - five or more resets from one address in an
 			// hour stop the form.
-			list($recentresets) = dbrow(dbquery("SELECT COUNT(*) FROM ".TABLEPREFIX."fanfiction_log WHERE log_type = 'LP' AND log_ip = INET_ATON('".$_SERVER['REMOTE_ADDR']."') AND log_timestamp > (NOW() - INTERVAL 1 HOUR)"));
+			list($recentresets) = dbrow(dbquery("SELECT COUNT(*) FROM ".TABLEPREFIX."fanfiction_log WHERE log_type = 'LP' AND log_ip = ".ef_ip_log_key($_SERVER['REMOTE_ADDR'])." AND log_timestamp > (NOW() - INTERVAL 1 HOUR)"));
 			$result = dbquery("SELECT "._UIDFIELD." as uid, "._PENNAMEFIELD." as penname, "._EMAILFIELD." AS email FROM "._AUTHORTABLE." WHERE email = '".strtolower(escapestring(descript($_POST['email'])))."'");
 			list($uid, $penname, $email) = dbrow($result);
 			// Maintenance fork: the response no longer distinguishes known
@@ -70,6 +70,9 @@ if(isMEMBER) accessDenied( );
 
 		
 				$result = sendemail($penname, $email, $sitename, $siteemail, $subject, $mailtext, "html");
+				// Maintenance fork: the reset rate limit counts every mailed
+				// reset, independent of the site logging setting.
+				dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_log (`log_action`, `log_uid`, `log_ip`, `log_type`, `log_timestamp`) VALUES('password reset', '".$uid."', ".ef_ip_log_key($_SERVER['REMOTE_ADDR']).", 'LP', NOW())");
 				if($result) {
 					$output .= write_message(_PASSWORDSENT);
 					dbquery("UPDATE ".substr(_AUTHORTABLE, 0, strpos(_AUTHORTABLE, "as author"))." SET password='$encryppass' WHERE uid = '".$uid."'");

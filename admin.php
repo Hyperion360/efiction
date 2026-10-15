@@ -34,7 +34,7 @@ $disableTiny = true;
 // rendered in the admin area, so the central POST gate below can verify it
 // no matter which panel rendered the form.
 ob_start(function($html) {
-	return preg_replace('(<form\b[^>]*>)i', '$0'.ef_csrf_field(), $html);
+	return preg_replace('#(<form\b[^>]*\bmethod\s*=\s*["\']?post[^>]*>)#i', '$0'.ef_csrf_field(), $html);
 });
 
 include ("header.php");

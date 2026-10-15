@@ -395,6 +395,24 @@ if ($adminCsrf) {
 post("$base/stories.php?action=delete", array('confirmed' => 'yes', 'sid' => '1', 'admin' => '1', 'uid' => '10'), $body, $status, $adminJar);
 check("forged admin story delete is denied", row_scalar($db, "SELECT title FROM fanfiction_stories WHERE sid = 1") === 'Fixture Story');
 
+// The validation panel's mutation ignores GET and a forged POST alike
+// (adversarial pass: this panel was missed in the first conversion round).
+$chapterValidBefore = row_scalar($db, "SELECT validated FROM fanfiction_chapters WHERE chapid = 2");
+get("$base/admin.php?action=validate&sid=2&chapid=2&validate=yes", $body, $status, $adminJar);
+check("validation GET link publishes nothing", row_scalar($db, "SELECT validated FROM fanfiction_chapters WHERE chapid = 2") === $chapterValidBefore);
+post("$base/admin.php?action=validate&sid=2&chapid=2", array('validate' => 'yes'), $body, $status, $adminJar);
+check("forged validation POST publishes nothing", $status === '403' && row_scalar($db, "SELECT validated FROM fanfiction_chapters WHERE chapid = 2") === $chapterValidBefore);
+
+// The classifications type delete works through the tokened POST (its
+// handler read type_id from GET only after conversion and was a no-op).
+$db->query("INSERT INTO fanfiction_classtypes (classtype_id, classtype_title, classtype_name) VALUES (99, 'QA Type', 'qatype')");
+if (!empty($adminCsrf)) {
+	post("$base/admin.php?action=classifications", array('delete' => 'type', 'type_id' => '99', 'csrf' => $adminCsrf[1]), $body, $status, $adminJar);
+	check("tokened classifications type delete executes", $status === '200' && row_scalar($db, "SELECT classtype_name FROM fanfiction_classtypes WHERE classtype_id = 99") === null);
+} else {
+	check("tokened classifications type delete executes", false);
+}
+
 // Lost-password responses no longer distinguish known from unknown mail.
 // (Both addresses must pass validEmail, or the panel rejects the input
 // before the uniform branch.)

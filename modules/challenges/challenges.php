@@ -174,7 +174,9 @@ else if($action == "delete") {
 	if($chalid)
 	{
 
-		$confirmed = isset($_GET["confirmed"]) ? $_GET["confirmed"] : false;
+		// Maintenance fork: the confirmation executes only from a tokened
+		// POST (the owner gate runs inside the viewer's own session).
+		$confirmed = isset($_GET["confirmed"]) ? $_GET["confirmed"] : (isset($_POST["confirmed"]) ? $_POST["confirmed"] : false);
 	
 		$output .= "<div id=\"pagetitle\">"._DELETECHALLENGE."</div>";
 		if(!$admin) {
@@ -185,6 +187,7 @@ else if($action == "delete") {
 			$output .= write_message(_ACTIONCANCELLED."  <a href=\""._BASEDIR."browse.php?type=challenges\">"._BACK2PREVIOUS."</a>");
 		}
 		else if($confirmed == "yes" && $chalid) {
+			if(!ef_csrf_verify()) accessDenied( );
 			dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_challenges WHERE chalid = '$chalid'");
 			$responses = dbquery("SELECT challenges, sid FROM  ".TABLEPREFIX."fanfiction_stories WHERE FIND_IN_SET($chalid, challenges) > 0");
 			while($response = dbassoc($responses)) {
@@ -196,7 +199,7 @@ else if($action == "delete") {
 			$output .=  write_message(_ACTIONSUCCESSFUL."  <a href=\"challenges.php\">"._BACK2PREVIOUS."</a>");
 		}
 		else {
-			$output .= write_message(_CONFIRMDELETE."<br /><br />[ <a href=\"challenges.php?action=delete&amp;confirmed=yes&amp;chalid=$chalid\">"._YES."</a> | 
+			$output .= write_message(_CONFIRMDELETE."<br /><br />[ ".ef_csrf_post_link("challenges.php?action=delete", _YES, array('confirmed' => 'yes', 'chalid' => $chalid))." |
 				<a href=\"challenges.php?action=delete&amp;confirmed=no\">"._NO."</a> ]");
 		}
 	}

@@ -52,7 +52,7 @@
 		$passwd = dbassoc($result);
 		if(!dbnumrows($result)) {
 			// Maintenance fork: failed attempts are counted for the throttle.
-			dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_log (`log_action`, `log_uid`, `log_ip`, `log_type`, `log_timestamp`) VALUES('failed login', '0', INET_ATON('".$_SERVER['REMOTE_ADDR']."'), 'LF', NOW())");
+			dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_log (`log_action`, `log_uid`, `log_ip`, `log_type`, `log_timestamp`) VALUES('failed login', '0', ".ef_ip_log_key($_SERVER['REMOTE_ADDR']).", 'LF', NOW())");
 			require_once("header.php");
 			//make a new TemplatePower object
 			if(file_exists("$skindir/default.tpl")) $tpl = new TemplatePower( "$skindir/default.tpl" );
@@ -107,7 +107,7 @@
 
 		else {
 			// Maintenance fork: failed attempts are counted for the throttle.
-			dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_log (`log_action`, `log_uid`, `log_ip`, `log_type`, `log_timestamp`) VALUES('failed login', '0', INET_ATON('".$_SERVER['REMOTE_ADDR']."'), 'LF', NOW())");
+			dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_log (`log_action`, `log_uid`, `log_ip`, `log_type`, `log_timestamp`) VALUES('failed login', '0', ".ef_ip_log_key($_SERVER['REMOTE_ADDR']).", 'LF', NOW())");
 			require_once("header.php");
 			//make a new TemplatePower object
 			if(file_exists("$skindir/default.tpl")) $tpl = new TemplatePower( "$skindir/default.tpl" );

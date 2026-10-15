@@ -27,8 +27,11 @@ if(!defined("_CHARSET")) exit( );
 
 $list = true;
 
-if(isset($_GET['type_id']) && isNumber($_GET['type_id'])) $type_id = $_GET['type_id'];
-if(isset($_GET['listtype']) && isNumber($_GET['listtype'])) $listtype = $_GET['listtype'];
+// Maintenance fork: read via ef_param so the tokened POST buttons carry
+// these values too (the type delete POSTs type_id; reading GET only made
+// that delete a silent no-op).
+if(ef_param('type_id') && isNumber(ef_param('type_id'))) $type_id = ef_param('type_id');
+if(ef_param('listtype') && isNumber(ef_param('listtype'))) $listtype = ef_param('listtype');
 
 // Maintenance fork: the mutation executes only from a tokened POST (verified
 // centrally in admin.php); a GET renders the question or nothing.

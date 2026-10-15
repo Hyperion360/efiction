@@ -19,6 +19,7 @@ trap 'rm -rf "$STAGE"' EXIT INT TERM
 # The fork tree, without development and private files.
 (cd "$REPO" && tar \
 	--exclude='./.git' \
+	--exclude='./.github' \
 	--exclude='./tests' \
 	--exclude='./dist' \
 	--exclude='./config.php' \

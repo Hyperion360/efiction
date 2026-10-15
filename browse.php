@@ -223,7 +223,7 @@ if($type) {
 		// Maintenance fork: the assembled terms are echoed into href and form
 		// action attributes below; values are entity-encoded so quotes in any
 		// request parameter cannot break out of the attribute.
-		$termsList[$term] = "$term=".(is_array($value) ? implode(",", array_map('htmlspecialchars', $value)) : htmlspecialchars($value, ENT_QUOTES));
+		$termsList[$term] = "$term=".(is_array($value) ? implode(",", array_map(function($v) { return htmlspecialchars($v, ENT_QUOTES); }, $value)) : htmlspecialchars($value, ENT_QUOTES));
 	}
 	$terms = "type=$type".(count($termsList) ? "&amp;" : "").implode("&amp;", $termsList);
 // End query strings

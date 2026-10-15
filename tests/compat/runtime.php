@@ -38,6 +38,17 @@ $masked = replace_naughty("ba\xC3\xBCd");
 $expected = "b****"; // first byte plus stars up to the byte length (5)
 check('multibyte legacy byte behavior unchanged', $masked === $expected);
 
+// descript(): the on*-attribute strip must remove every event handler
+// (including onerror/onfocus/onclick in any case) while PRESERVING tags
+// whose attribute values merely start with an on-word. The unanchored
+// pattern collapsed <a title="only once"> entirely (review finding).
+check('descript strips onerror handler', strpos(descript('<img src=x onerror=alert(1)>'), 'onerror') === false);
+check('descript strips spaced onclick', strpos(descript('<a ONCLICK ="x()">y</a>'), 'ONCLICK') === false);
+check('descript strips xmlns', strpos(descript('<span xmlns="http://x">z</span>'), 'xmlns') === false);
+check('descript preserves on-word attribute values', descript('<a title="only once">text</a>') === '<a title="only once">text</a>');
+check('descript preserves on-word hrefs', strpos(descript('<a href="once.php">link</a>'), 'once.php') !== false);
+check('descript leaves prose untouched', descript('Consider the onclick handler') === 'Consider the onclick handler');
+
 // Login salt: the four salt sites must use string concatenation. Arithmetic
 // addition on strings is a TypeError on PHP 8, which broke login and the
 // remember-me cookie.

@@ -97,9 +97,11 @@ function descript($text) {
 
 	// remove any attribute starting with "on" or xmlns
 	// Maintenance fork: upstream listed nine on* handlers, missing onerror,
-	// onfocus, ontoggle and every later addition; the generic pattern strips
-	// all of them.
-	$text = preg_replace('#(<[^>]+[\\"\'\s])(on[a-z]+|xmlns)[^>]*>#iU', ">", $text);
+	// onfocus, ontoggle and later additions; the generic pattern strips
+	// all of them. The \s*= anchor is required: without it, an attribute
+	// VALUE merely starting with an on-word (title="only once") collapsed
+	// the whole tag (review finding, verified on stored story HTML paths).
+	$text = preg_replace('#(<[^>]+[\\"\'\s])(on[a-z]+\s*=|xmlns)[^>]*>#iU', ">", $text);
 
 	// remove javascript: and vbscript: protocol
 	
@@ -608,7 +610,7 @@ function search($storyquery, $countquery, $pagelink = "search.php?", $pagetitle 
 			// Maintenance fork: the assembled terms feed build_pagelinks, which
 			// interpolates them into href attributes; values are entity-encoded
 			// so quotes in any request parameter cannot break out.
-			$terms[] = "$term=".(is_array($value) ? implode(",", array_map('htmlspecialchars', $value)) : htmlspecialchars($value, ENT_QUOTES));
+			$terms[] = "$term=".(is_array($value) ? implode(",", array_map(function($v) { return htmlspecialchars($v, ENT_QUOTES); }, $value)) : htmlspecialchars($value, ENT_QUOTES));
 		}
 		$terms = implode("&amp;", $terms);
 		$terms .= "&amp;";

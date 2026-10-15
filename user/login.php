@@ -35,8 +35,11 @@
 		include_once("includes/queries.php");
 		// Maintenance fork: brute-force throttle on the existing log table
 		// (no schema change): ten or more failed logins from this address in
-		// the last fifteen minutes lock the form for fifteen minutes.
-		list($recentfails) = dbrow(dbquery("SELECT COUNT(*) FROM ".TABLEPREFIX."fanfiction_log WHERE log_type = 'LF' AND log_ip = INET_ATON('".$_SERVER['REMOTE_ADDR']."') AND log_timestamp > (NOW() - INTERVAL 15 MINUTE)"));
+		// the last fifteen minutes lock the form for fifteen minutes. The
+		// count keys on ef_ip_log_key like the inserts below it (review
+		// finding: INET_ATON is NULL for IPv6, leaving those clients
+		// unthrottled while their failure rows still accumulated).
+		list($recentfails) = dbrow(dbquery("SELECT COUNT(*) FROM ".TABLEPREFIX."fanfiction_log WHERE log_type = 'LF' AND log_ip = ".ef_ip_log_key($_SERVER['REMOTE_ADDR'])." AND log_timestamp > (NOW() - INTERVAL 15 MINUTE)"));
 		if($recentfails >= 10) {
 			require_once("header.php");
 			if(file_exists("$skindir/default.tpl")) $tpl = new TemplatePower( "$skindir/default.tpl" );

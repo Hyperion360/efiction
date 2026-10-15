@@ -399,15 +399,20 @@ if($ef_action === "recover") {
 				}
 				$dumpok = file_put_contents($backupdir."/db-backup.sql", $dump) !== false;
 				// Maintenance fork: config.php was destroyed even when every
-				// backup write had failed; destruction now requires at least
-				// one backup artifact to exist.
+				// backup write had failed; destruction requires at least one
+				// backup artifact. ef_deny only renders, so the destructive
+				// steps are inside the else branch (review finding: the bare
+				// if fell through and destroyed config.php anyway while the
+				// page claimed it was preserved).
 				if(!$backupok && !$dumpok) {
 					ef_deny("Recovery denied. The pre-recovery backup could not be written to ".htmlspecialchars($backupdir, ENT_QUOTES)."; config.php was left in place. Check the directory permissions above the web root and retry.");
 				}
-				@unlink(ef_config_path());
-				@unlink(ef_state_path());
-				$output .= "<div id='pagetitle'>Recovery complete</div>";
-				$output .= write_message("The partial install was backed up to ".$backupdir." (config.php and db-backup.sql".($backupok && $dumpok ? "" : ", NOTE: the backup may be incomplete").") and config.php was removed. Start a fresh installation from step 1. Delete the backup once the new installation is verified.");
+				else {
+					@unlink(ef_config_path());
+					@unlink(ef_state_path());
+					$output .= "<div id='pagetitle'>Recovery complete</div>";
+					$output .= write_message("The partial install was backed up to ".$backupdir." (config.php and db-backup.sql".($backupok && $dumpok ? "" : ", NOTE: the backup may be incomplete").") and config.php was removed. Start a fresh installation from step 1. Delete the backup once the new installation is verified.");
+				}
 			}
 		}
 	}

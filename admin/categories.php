@@ -161,10 +161,11 @@ function relevelcategory($cat, $leveldown) {
 	else {
 		if(isset($_POST["go"])) {
 			$displayorder = isNumber($_POST["displayorder"]) ? $_POST["displayorder"] : 0;
+			$parentcatid = isset($_POST['parentcatid']) && isNumber($_POST['parentcatid']) ? $_POST['parentcatid'] : "-1";
 			$oneabove =  ($_POST["go"] == "up" ?  $displayorder -1 : $displayorder + 1);
-			dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = '-1' WHERE displayorder = '$displayorder' AND parentcatid = '".$_POST['parentcatid']."'");
-			dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = '$displayorder' WHERE displayorder = '$oneabove' AND parentcatid = '".$_POST['parentcatid']."'");
-			dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = '$oneabove' WHERE displayorder = '-1' AND parentcatid = '".$_POST['parentcatid']."'");
+			dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = '-1' WHERE displayorder = '$displayorder' AND parentcatid = '$parentcatid'");
+			dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = '$displayorder' WHERE displayorder = '$oneabove' AND parentcatid = '$parentcatid'");
+			dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = '$oneabove' WHERE displayorder = '-1' AND parentcatid = '$parentcatid'");
 			$catlist = array( );
 			$catresults = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_categories ORDER BY leveldown, displayorder");
 			while($cat = dbassoc($catresults)) {

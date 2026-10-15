@@ -57,7 +57,11 @@ class file_upload {
 			sleep(3);
 			$name = $name.$this->get_extension($this->the_file);
 		} else {
-			$name = str_replace(" ", "_", $this->the_file); // space will result in problems on linux systems
+			// Maintenance fork: the client-controlled original filename is
+			// reduced to a single path component, so ../ sequences (in either
+			// slash direction) cannot move the destination outside the
+			// configured upload directory.
+			$name = basename(str_replace("\\", "/", str_replace(" ", "_", $this->the_file))); // space will result in problems on linux systems
 		}
 		return $name;
 	}

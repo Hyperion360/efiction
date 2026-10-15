@@ -558,7 +558,10 @@ function search($storyquery, $countquery, $pagelink = "search.php?", $pagetitle 
 		$terms = array();
 		foreach($termArray as $term => $value) {
 			if($term == "submit" || $term == "go" || $term == "offset" || ($term != "complete" &&empty($value))) continue;
-			$terms[] = "$term=".(is_array($value) ? implode(",", $value) : $value);
+			// Maintenance fork: the assembled terms feed build_pagelinks, which
+			// interpolates them into href attributes; values are entity-encoded
+			// so quotes in any request parameter cannot break out.
+			$terms[] = "$term=".(is_array($value) ? implode(",", array_map('htmlspecialchars', $value)) : htmlspecialchars($value, ENT_QUOTES));
 		}
 		$terms = implode("&amp;", $terms);
 		$terms .= "&amp;";

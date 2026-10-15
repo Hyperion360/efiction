@@ -141,7 +141,9 @@ if(isset($_GET['debug']) && defined("isADMIN") && isADMIN) {
 }
 
 if(isset($_GET['skin'])) {
-	$siteskin = $_GET['skin'];
+	// Maintenance fork: the skin name reaches include paths (extra_header.php,
+	// variables.php), so only a single path component is ever accepted.
+	$siteskin = basename($_GET['skin']);
 	$_SESSION[SITEKEY."_skin"] = $siteskin;
 }
 
@@ -190,6 +192,11 @@ if(isset($_GET['warning'])) $_SESSION[SITEKEY."_warned"][$_GET['warning']] = 1;
 
 if(file_exists("languages/{$language}.php")) require_once ("languages/{$language}.php");
 else require_once ("languages/en.php");
+// Maintenance fork: $siteskin can arrive from the GET above, the session, or
+// the stored author preference; every source is reduced to one path component
+// before the directory is trusted, so traversal sequences can never redirect
+// the skin includes out of skins/.
+$siteskin = basename((string)$siteskin);
 if(is_dir(_BASEDIR."skins/$siteskin")) $skindir = _BASEDIR."skins/$siteskin";
 else if(is_dir(_BASEDIR."skins/".$settings['skin'])) $skindir = _BASEDIR."skins/".$defaultskin;
 else $skindir = _BASEDIR."default_tpls";

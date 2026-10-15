@@ -27,6 +27,13 @@ function dbquery($query) {
 	try {
 		$result = $dbconnect->query($query);
 	} catch (mysqli_sql_exception $e) {
+		// Maintenance fork: accessDenied lives in corefunctions, which early
+		// bootstrappers (login.php) have not loaded yet; fail with a plain
+		// 500 instead of a fatal about the missing function.
+		if(!function_exists("accessDenied")) {
+			http_response_code(500);
+			exit("A database error occurred.");
+		}
 		accessDenied( _FATALERROR.(defined("isADMIN") && isADMIN ? "Query: ".$query."<br />Error: ".$e->getMessage() : ""));
 		exit( );
 	}
@@ -34,6 +41,10 @@ function dbquery($query) {
 	// a failed query returns false instead of throwing; route that through
 	// the same guard so no caller ever receives a false result.
 	if($result === false) {
+		if(!function_exists("accessDenied")) {
+			http_response_code(500);
+			exit("A database error occurred.");
+		}
 		accessDenied( _FATALERROR.(defined("isADMIN") && isADMIN ? "Query: ".$query : ""));
 		exit( );
 	}

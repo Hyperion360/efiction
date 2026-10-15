@@ -134,11 +134,13 @@ function deleteUser($uid) {
 			}
 		}
 	}
-	$stories = dbquery("SELECT *, COUNT(uid) AS count FROM ".TABLEPREFIX."fanfiction_coauthors WHERE uid = '$uid' GROUP BY uid");
-	while($s = dbassoc($stories)) {
-		if($s['count'] > 1) dbquery("UPDATE ".TABLEPREFIX."fanfiction_stories SET coauthors = 0 WHERE sid = '".$s['sid']."'");
-	}
+	// Maintenance fork: upstream ran "SELECT *, COUNT(uid) ... GROUP BY uid"
+	// here, which MySQL 8's default ONLY_FULL_GROUP_BY mode rejects (member
+	// deletion fataled), and then updated one arbitrary story row from the
+	// collapsed group. The removal now runs first and any story left with
+	// no coauthor rows at all gets its flag cleared.
 	dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_coauthors WHERE uid = '$uid'");
+	dbquery("UPDATE ".TABLEPREFIX."fanfiction_stories SET coauthors = 0 WHERE coauthors = 1 AND sid NOT IN (SELECT sid FROM ".TABLEPREFIX."fanfiction_coauthors)");
 	$stories = dbquery("SELECT seriesid FROM ".TABLEPREFIX."fanfiction_series where uid = '".$uid."'");
 	$numstories = dbnumrows($stories);
 	while($story = dbassoc($stories)) {

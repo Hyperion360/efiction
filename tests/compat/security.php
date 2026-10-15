@@ -280,6 +280,84 @@ if (preg_match("/name='csrf' value='([0-9a-f]+)'/", (string) $body, $m) || preg_
 	check("message edit form carries a session token", false);
 }
 
+// ---- 8. full-codebase QA hardening (2026-10-15) ------------------------------
+// Regression checks for the second hardening pass: cookie SQL injection in
+// the session bootstrap, the editbio authorization hole, browse.php input
+// validation, skin path traversal, the review edit/update IDOR, stored
+// script in author responses, and the printable chapter fatal.
+
+// Crafted remember-me cookie: a quote in the uid cookie reached the session
+// bootstrap query before the salt comparison, so upstream every page load
+// ran attacker SQL. The jar carries the urlencoded quote.
+$badCookieJar = "$work/jar-badcookie";
+@unlink($badCookieJar);
+get("$base/index.php", $body, $status);
+file_put_contents($badCookieJar, "127.0.0.1\tFALSE\t/\tFALSE\t0\tfixture355key_useruid\t%27\n");
+get("$base/index.php", $body, $status, $badCookieJar);
+check("quote-bearing remember-me cookie renders the guest page", $status === '200' && strpos((string) $body, 'A fatal MySQL error') === false);
+check("quote-bearing remember-me cookie prints no PHP errors", preg_match('/<(Warning|Fatal error|Parse error|Deprecated|Notice)\b/', (string) $body) !== 1);
+
+// editbio authorization: upstream appended a not-authorized message but kept
+// processing, so any member could reset another account's password.
+$ownerHashBefore = row_scalar($db, "SELECT password FROM fanfiction_authors WHERE uid = 10");
+post("$base/user.php?action=editbio&uid=10", array(
+	'submit' => 'Submit', 'password' => 'takenover 789', 'password2' => 'takenover 789',
+	'email' => 'owner@example.com', 'realname' => 'Owner',
+), $body, $status, $memberJar);
+check("member cannot reset another account's password", row_scalar($db, "SELECT password FROM fanfiction_authors WHERE uid = 10") === $ownerHashBefore);
+post("$base/user.php?action=editbio&uid=10%27%20OR%20%271%27%3D%271", array(
+	'submit' => 'Submit', 'password' => 'takenover 789', 'password2' => 'takenover 789',
+	'email' => 'owner@example.com', 'realname' => 'Owner',
+), $body, $status, $memberJar);
+check("injected editbio uid changes no password", row_scalar($db, "SELECT password FROM fanfiction_authors WHERE uid = 10") === $ownerHashBefore);
+
+// browse.php: search.php's escapestring/isNumber treatment was missing here.
+// A lone trailing quote breaks the LIKE quoting when unescaped (upstream:
+// fatal error page); escaped it is a harmless literal. Sidebar blocks list
+// story titles on every page, so title-absence is not a usable signal.
+get("$base/browse.php?type=titles&searchterm=x%27", $body, $status);
+check("browse searchterm quote neither errors nor matches everything", $status === '200' && strpos((string) $body, 'A fatal MySQL error') === false && preg_match('/<(Warning|Fatal error|Deprecated)\b/', (string) $body) !== 1);
+post("$base/browse.php?type=titles", array(
+	'submit' => 'Go', 'wordlow' => "1' OR '1'='1", 'wordhigh' => '999999',
+), $body, $status);
+check("browse wordcount bounds are numeric only", $status === '200' && strpos((string) $body, 'A fatal MySQL error') === false);
+
+// Skin path traversal: a skin name containing ../ redirected the skin
+// includes out of skins/. A planted directory proves inclusion.
+@mkdir("$web/evil", 0777);
+file_put_contents("$web/evil/variables.php", "<?php file_put_contents(__DIR__ . '/pwned-marker.txt', 'x'); ");
+get("$base/index.php?skin=..%2Fevil", $body, $status);
+check("skin traversal does not include outside directories", !file_exists("$web/evil/pwned-marker.txt"));
+
+// Review edit IDOR: upstream updated any review by id with no ownership
+// check. Seed one review owned by uid 10 and try to rewrite it as uid 12.
+$db->query("INSERT INTO fanfiction_reviews (item, chapid, reviewer, review, rating, date, uid, respond, type) VALUES (1, 0, 'AuthorOwner', 'Original review text.', 0, NOW(), 10, '0', 'ST')");
+$reviewid = (string) $db->insert_id;
+post("$base/reviews.php?action=edit&reviewid=$reviewid", array(
+	'submit' => 'Submit', 'review' => 'Rewritten by intruder.', 'rating' => '5',
+), $body, $status, $memberJar);
+check("member cannot rewrite another member's review", row_scalar($db, "SELECT review FROM fanfiction_reviews WHERE reviewid = $reviewid") === 'Original review text.');
+
+// Author response storage: upstream appended the response without
+// strip_tags, so a script tag reached every visitor of the review page.
+// The response form is rendered to the review owner on the revres panel.
+get("$base/user.php?action=revres&reviewid=$reviewid", $body, $status, $ownerJar);
+if (preg_match("/name=[\"']rid[\"'] value=[\"']([0-9]+)[\"']/", (string) $body, $ridMatch)) {
+	post("$base/user.php?action=revres", array(
+		'submit' => 'Submit', 'rid' => $ridMatch[1], 'response' => '<script>alert(1)</script>harmless words',
+	), $body, $status, $ownerJar);
+	check("author response stores no script tag", strpos((string) row_scalar($db, "SELECT review FROM fanfiction_reviews WHERE reviewid = " . (int) $ridMatch[1]), '<script>') === false);
+} else {
+	check("review response form is reachable for the story owner", false);
+}
+
+// Printable unvalidated chapter: the fork's chapter access check read a
+// variable that had been unset, fatalling on PHP 8. Insert one unvalidated
+// chapter into validated story 1 and read it as a guest.
+$db->query("INSERT INTO fanfiction_chapters (title, inorder, storytext, validated, sid, uid) VALUES ('QA unvalidated chapter', 99, 'Hidden QA chapter text.', 0, 1, 10)");
+get("$base/viewstory.php?action=printable&sid=1&chapter=99", $body, $status, $guestJar);
+check("printable unvalidated chapter renders without a PHP fatal", $status === '200' && preg_match('/<(Fatal error|Warning|Deprecated)\b/', (string) $body) !== 1);
+
 // ---- teardown ---------------------------------------------------------------
 if ($fails) {
 	// Keep the disposable environment for inspection unless KEEP_WORK=0.

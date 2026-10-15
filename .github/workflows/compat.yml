@@ -13,6 +13,10 @@
 
 name: compatibility
 
+# Least privilege: every job only checks out and runs tests.
+permissions:
+  contents: read
+
 on:
   push:
     branches: [main, codex/php83-maintenance]

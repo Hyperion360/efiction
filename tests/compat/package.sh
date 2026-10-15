@@ -22,6 +22,7 @@ trap 'rm -rf "$STAGE"' EXIT INT TERM
 	--exclude='./tests' \
 	--exclude='./dist' \
 	--exclude='./config.php' \
+	--exclude='./docs/config.php' \
 	--exclude='./export-token.php' \
 	--exclude='*/export-token.php' \
 	--exclude='*/efiction-install-token.txt' \

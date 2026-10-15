@@ -474,8 +474,13 @@ if [ "$MODE" = "fresh" ]; then
 	check_status "logout returns 200" 200 "$status"
 
 	# Direct HTTP request must not expose config.php contents or the token.
+	# An empty admin password makes the dbpass needle match every body
+	# (grep -F ""), so that assertion runs only with a nonempty password;
+	# the dbname needle below covers the empty-password case.
 	status=$(curl -s -o "$BODY" -w '%{http_code}' "$BASE/config.php")
-	check_not_contains "config.php not readable as text (no dbpass)" "$EF_DB_ADMIN_PASSWORD" "$BODY"
+	if [ -n "$EF_DB_ADMIN_PASSWORD" ]; then
+		check_not_contains "config.php not readable as text (no dbpass)" "$EF_DB_ADMIN_PASSWORD" "$BODY"
+	fi
 	check_not_contains "config.php not readable as text (no dbname)" "$DB_NAME" "$BODY"
 	status=$(curl -s -o "$BODY" -w '%{http_code}' "$BASE/../efiction-install-token.txt")
 	check_not_contains "token file not web readable" "$ADMIN_SECRET" "$BODY"

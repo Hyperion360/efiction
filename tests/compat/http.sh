@@ -220,14 +220,14 @@ HEADERS="$WORK/headers.txt"
 
 http_get() { # http_get <url> [jar]
 	jar=${2:-$JAR}
-	curl -s -D "$HEADERS" -o "$BODY" -w '%{http_code}' -b "$jar" -c "$jar" "$BASE$1"
+	curl -s --max-time 60 -D "$HEADERS" -o "$BODY" -w '%{http_code}' -b "$jar" -c "$jar" "$BASE$1"
 }
 
 http_post() { # http_post <url> <data> [jar] [origin]
 	url=$1
 	data=$2
 	jar=${3:-$JAR}
-	curl -s -D "$HEADERS" -o "$BODY" -w '%{http_code}' \
+	curl -s --max-time 60 -D "$HEADERS" -o "$BODY" -w '%{http_code}' \
 		-b "$jar" -c "$jar" \
 		${4:+-H "Origin: $4"} \
 		--data "$data" "$BASE$url"
@@ -474,15 +474,24 @@ if [ "$MODE" = "fresh" ]; then
 	check_status "logout returns 200" 200 "$status"
 
 	# Direct HTTP request must not expose config.php contents or the token.
-	# An empty admin password makes the dbpass needle match every body
-	# (grep -F ""), so that assertion runs only with a nonempty password;
-	# the dbname needle below covers the empty-password case.
-	status=$(curl -s -o "$BODY" -w '%{http_code}' "$BASE/config.php")
+	# The status is asserted so a dead server or a curl failure cannot make
+	# these checks pass vacuously. An empty admin password makes the dbpass
+	# value needle match every body (grep -F ""), so that assertion runs
+	# only with a nonempty password; the source-literal and dbname needles
+	# cover the empty-password case: an executed config.php returns an empty
+	# body, a dumped one always contains the literal assignments.
+	status=$(curl -s --max-time 60 -o "$BODY" -w '%{http_code}' "$BASE/config.php")
+	check_status "config.php request returns 200 (executed, not dumped)" 200 "$status"
+	check_not_contains "config.php source not disclosed (no dbpass assignment)" '$dbpass' "$BODY"
 	if [ -n "$EF_DB_ADMIN_PASSWORD" ]; then
-		check_not_contains "config.php not readable as text (no dbpass)" "$EF_DB_ADMIN_PASSWORD" "$BODY"
+		check_not_contains "config.php not readable as text (no dbpass value)" "$EF_DB_ADMIN_PASSWORD" "$BODY"
 	fi
 	check_not_contains "config.php not readable as text (no dbname)" "$DB_NAME" "$BODY"
-	status=$(curl -s -o "$BODY" -w '%{http_code}' "$BASE/../efiction-install-token.txt")
+	# curl squashes /../ dot segments per RFC 3986 before sending, so
+	# without --path-as-is the traversal to the token file outside the
+	# docroot is never actually requested and the check below cannot fail.
+	status=$(curl -s --path-as-is --max-time 60 -o "$BODY" -w '%{http_code}' "$BASE/../efiction-install-token.txt")
+	check "token traversal request is rejected (status $status, not 200)" [ "$status" != "200" ]
 	check_not_contains "token file not web readable" "$ADMIN_SECRET" "$BODY"
 
 else

@@ -31,6 +31,7 @@ jobs:
         image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: efcipassword
+          MYSQL_ROOT_HOST: "%"
         ports:
           - 3306:3306
         options: >-
@@ -61,6 +62,8 @@ jobs:
         run: php tests/compat/database.php
         env:
           EF_DB_NAME: efiction_test_ci
+          EF_DB_USER: root
+          EF_DB_PASSWORD: efcipassword
       - name: Browser install (fresh)
         run: sh tests/compat/http.sh fresh
       - name: Browser install (upgrade from the 3.5.5 fixture)
@@ -84,6 +87,8 @@ jobs:
         image: mariadb:10.11
         env:
           MARIADB_ROOT_PASSWORD: efcipassword
+          MARIADB_ROOT_HOST: "%"
+          MYSQL_ROOT_HOST: "%"
         ports:
           - 3306:3306
         options: >-
@@ -114,6 +119,8 @@ jobs:
         run: php tests/compat/database.php
         env:
           EF_DB_NAME: efiction_test_ci
+          EF_DB_USER: root
+          EF_DB_PASSWORD: efcipassword
       - name: Browser install (fresh)
         run: sh tests/compat/http.sh fresh
       - name: Browser install (upgrade from the 3.5.5 fixture)

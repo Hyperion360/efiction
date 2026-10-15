@@ -12,12 +12,16 @@ if(!defined("_LOGOUTCHECK")) exit( );
 			setcookie($VarName, '', time() - 1000, '/', '', '' );
 		}
 	} 
-	foreach ($_COOKIE as $VarName => $Value)  { 
+	foreach ($_COOKIE as $VarName => $Value)  {
 		if(substr($VarName, 0, strlen($sitekey)) == $sitekey) {
 			unset($_COOKIE[$VarName]);
 			setcookie($VarName, "", time() - 1000, '/', '', '' );
 		}
-	} 
+	}
+	// Maintenance fork: rotate the session id on logout so the
+	// pre-authentication id cannot be replayed after the session variables
+	// are cleared.
+	session_regenerate_id(true);
 require_once("header.php");
 //make a new TemplatePower object
 if(file_exists("$skindir/default.tpl")) $tpl = new TemplatePower( "$skindir/default.tpl" );

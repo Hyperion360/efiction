@@ -5,9 +5,12 @@ if(!defined("_CHARSET")) exit( );
 	$shortform = "{penname} {password} {rememberme} {go}";
 if(!isMEMBER) {
 	$content = "<form method=\"POST\" id=\"loginblock\" enctype=\"multipart/form-data\" action=\""._BASEDIR."user.php?action=login\">";
-	$replace = array("<label for=\"penname=\">"._PENNAME.":</label><INPUT type=\"text\" class=\"textbox\" name=\"penname\" id=\"penname\" size=\"15\">", 
+	// Maintenance fork: the label for-attributes carried stray '='
+	// characters, so they never associated with their inputs (screen readers
+	// announced unnamed textboxes).
+	$replace = array("<label for=\"penname\">"._PENNAME.":</label><INPUT type=\"text\" class=\"textbox\" name=\"penname\" id=\"penname\" size=\"15\">",
 			"<label for=\"password\">"._PASSWORD.":</label><INPUT type=\"password\" class=\"textbox\" name=\"password\" id=\"password\" size=\"15\">",
-			"<span id='rememberme'><INPUT type=\"checkbox\" class=\"checkbox\" name=\"cookiecheck\" id=\"cookiecheck\" value=\"1\"><label for=\"cookiecheck=\">"._REMEMBERME."</label></span>",
+			"<span id='rememberme'><INPUT type=\"checkbox\" class=\"checkbox\" name=\"cookiecheck\" id=\"cookiecheck\" value=\"1\"><label for=\"cookiecheck\">"._REMEMBERME."</label></span>",
 			(!empty($pagelinks['register']['link']) ? $pagelinks['register']['link'] : ""), $pagelinks['lostpassword']['link'],
 			"<INPUT type=\"submit\" class=\"button\" name=\"submit\" value=\""._GO."\">");
 	$search = array("@\{penname\}@", "@\{password\}@", "@\{rememberme\}@", "@\{register\}@", "@\{lostpwd\}@", "@\{go\}@");

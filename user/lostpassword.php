@@ -46,9 +46,16 @@ if(isMEMBER) accessDenied( );
 
 	  if(isset($_POST['submit'])) {
 		if(validEmail($_POST['email'])) {
+			// Maintenance fork: a rate limit on the existing LP log rows (no
+			// schema change) - five or more resets from one address in an
+			// hour stop the form.
+			list($recentresets) = dbrow(dbquery("SELECT COUNT(*) FROM ".TABLEPREFIX."fanfiction_log WHERE log_type = 'LP' AND log_ip = INET_ATON('".$_SERVER['REMOTE_ADDR']."') AND log_timestamp > (NOW() - INTERVAL 1 HOUR)"));
 			$result = dbquery("SELECT "._UIDFIELD." as uid, "._PENNAMEFIELD." as penname, "._EMAILFIELD." AS email FROM "._AUTHORTABLE." WHERE email = '".strtolower(escapestring(descript($_POST['email'])))."'");
 			list($uid, $penname, $email) = dbrow($result);
-			if(dbnumrows($result) == 0) $output .= write_message(_BADEMAIL);
+			// Maintenance fork: the response no longer distinguishes known
+			// from unknown addresses (email enumeration); an unknown address
+			// receives the same message and no mail.
+			if($recentresets >= 5 || dbnumrows($result) == 0) $output .= write_message(_PASSWORDSENT);
 			else {
 				include("includes/emailer.php");
 				// Maintenance fork: upstream seeded mt_rand from the request

@@ -33,9 +33,26 @@
 		define("TABLEPREFIX", $tableprefix);
 		define("SITEKEY", $sitekey);
 		include_once("includes/queries.php");
+		// Maintenance fork: brute-force throttle on the existing log table
+		// (no schema change): ten or more failed logins from this address in
+		// the last fifteen minutes lock the form for fifteen minutes.
+		list($recentfails) = dbrow(dbquery("SELECT COUNT(*) FROM ".TABLEPREFIX."fanfiction_log WHERE log_type = 'LF' AND log_ip = INET_ATON('".$_SERVER['REMOTE_ADDR']."') AND log_timestamp > (NOW() - INTERVAL 15 MINUTE)"));
+		if($recentfails >= 10) {
+			require_once("header.php");
+			if(file_exists("$skindir/default.tpl")) $tpl = new TemplatePower( "$skindir/default.tpl" );
+			else $tpl = new TemplatePower("default_tpls/default.tpl");
+			include_once("includes/pagesetup.php");
+			$output = write_error("Too many failed sign-in attempts from this address. Try again in fifteen minutes.");
+			$tpl->assign("output", $output);
+			$tpl->printToScreen( );
+			dbclose( );
+			exit( );
+		}
 		$result = dbquery("SELECT *, "._UIDFIELD." as uid FROM "._AUTHORTABLE." LEFT JOIN ".$tableprefix."fanfiction_authorprefs AS ap ON ap.uid = "._UIDFIELD." WHERE "._PENNAMEFIELD." = '".$_POST['penname']."'");
 		$passwd = dbassoc($result);
 		if(!dbnumrows($result)) {
+			// Maintenance fork: failed attempts are counted for the throttle.
+			dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_log (`log_action`, `log_uid`, `log_ip`, `log_type`, `log_timestamp`) VALUES('failed login', '0', INET_ATON('".$_SERVER['REMOTE_ADDR']."'), 'LF', NOW())");
 			require_once("header.php");
 			//make a new TemplatePower object
 			if(file_exists("$skindir/default.tpl")) $tpl = new TemplatePower( "$skindir/default.tpl" );
@@ -88,7 +105,9 @@
 			}
 		}
 
-		else { 
+		else {
+			// Maintenance fork: failed attempts are counted for the throttle.
+			dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_log (`log_action`, `log_uid`, `log_ip`, `log_type`, `log_timestamp`) VALUES('failed login', '0', INET_ATON('".$_SERVER['REMOTE_ADDR']."'), 'LF', NOW())");
 			require_once("header.php");
 			//make a new TemplatePower object
 			if(file_exists("$skindir/default.tpl")) $tpl = new TemplatePower( "$skindir/default.tpl" );

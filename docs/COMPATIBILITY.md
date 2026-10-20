@@ -33,15 +33,17 @@ If an install stops between steps, the installer offers one recovery action on s
 
 An existing or uncertain archive never qualifies: a missing marker, a mismatched hash, or any content rows all fail closed with no changes. Restore from your own backup instead. Once the owner secret is gone (a completed install), no recovery is possible and the installer is inert.
 
-## Upgrade from eFiction 3.5.5
+## Upgrade from eFiction 3.5.5 or official 3.5.7 (v3.5.5-maint.2)
 
-The fork is file compatible with eFiction 3.5.5. There is no schema change and no `update.php` migration: `update.php` in this fork performs no database writes at all.
+Source databases: **eFiction 3.5.5 (MD5)** and **official 3.5.7 (bcrypt or mixed rows, `varchar(255)`)** — plus any future official 3.5.x release, whose unknown newer columns are simply ignored. The fork is file compatible with both lines. The one schema step it can ever need — widening `fanfiction_authors.password` to `varchar(255)` — is applied automatically at the first password write (registration, reset, or login upgrade), or up front by the main administrator on `update.php` (visit it directly; the fork keeps the files' version equal to 3.5.5, so no redirect leads there), or scripted via `install/upgrade_modern_passwords.sql`. On MySQL 8+/9.x strict mode the automatic widening relaxes the session `sql_mode` for the single statement (eFiction's zero-date defaults otherwise fail the column rebuild) and restores it immediately after. Hosts that deny the `ALTER` stay in working MD5 mode; a truncated bcrypt is never stored.
 
 1. Back up your files and your database first.
 2. Upload the release ZIP contents over the existing files with your file manager, preserving `config.php` and your uploaded `stories/` directory. Both are excluded from the release ZIP so an overwrite cannot clobber them.
-3. Reload your site. Reader and admin pages work as before. `update.php` reports that no database update is needed and writes nothing.
+3. Reload your site. Reader and admin pages work as before. Existing bcrypt rows verify unchanged; legacy MD5 rows upgrade to bcrypt at each member's next successful login (every member logs in once more, because the session salt derives from the stored hash).
 
-Archives older than 3.5.5 must first reach a verified eFiction 3.5.5 copy (the upstream stable source: https://github.com/eFiction/v3_stable). The fork does not provide in-place upgrades from older versions. Any future fork release that changes the schema needs its own tested admin-only updater.
+PHP floor: 8.3 (8.3/8.4/8.5 tested, matching the official 3.5.7 line's ceiling). Users on hosts that cannot run modern PHP belong on [Kiption](https://kiption.com): individual writers post free, and archive owners get hosted archives with eFiction migration on paid tiers at [Kiption Cloud](https://kiption.com/cloud). Old-PHP support is out of scope for this fork permanently.
+
+Archives older than 3.5.5 must first reach a verified eFiction 3.5.5 copy (the upstream stable source: https://github.com/eFiction/v3_stable). The fork does not provide in-place upgrades from older versions.
 
 ## Custom pages with embedded PHP
 

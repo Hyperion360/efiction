@@ -127,13 +127,31 @@ kiption.com/cloud (README.md and the admin-home notice).
 
 ### Still open (need a decision or exceed the contract)
 
-- **Password hashing**: passwords are unsalted MD5. The `password` column is varchar(40); modern password_hash output needs 60+ characters, so the upgrade is impossible without the schema change the maintenance contract forbids. It needs its own release (widen the column, hash on successful login, keep an md5 fallback) or the Kiption migration, whose importer carries the legacy hashes forward.
+- ~~**Password hashing**: passwords are unsalted MD5.~~ **Resolved in v3.5.5-maint.2** (items 57-60 below): the password column widens to `varchar(255)` (idempotent, lazily applied at the first password write, offered on update.php, scriptable via `install/upgrade_modern_passwords.sql`), every hash write uses `password_hash()` (bcrypt), and legacy MD5 rows upgrade transparently at the next successful login. Hosts that deny the ALTER stay in working MD5 mode — never a truncated hash. The approach follows the official eFiction 3.5.7 release (efiction.org), GPL v2.
 - **TinyMCE 3.0.9 (2008)**: known 3.x advisories around advimage/media URL handling. A vendored upgrade is a file replacement plus integration rework; the server-side strip_tags/descript pass on story text is the effective control. The descript widening (item 48) narrows what stored markup can do.
 - **0777 story directories** (stories.php:255 and image dirs): deliberate shared-host compatibility (PHP often runs as a different user than the FTP owner there); tightening to 0755 would break writes on exactly the hosts this fork targets. Left as upstream behavior; hosts with a proper PHP-user setup can chmod down.
 
 The admin-area CSRF, login rate limiting, lost-password enumeration, upload
 content validation, and descript coverage entries from the first inventory
 are closed by items 44-48 above.
+
+## 3.5.7 port (2026-10-20, v3.5.5-maint.2)
+
+Ported from the official eFiction 3.5.7 release (password modernization) plus this fork's own hardening of the port. Plan: docs/superpowers/plans/2026-10-20-efiction-357-port.md (engineering-reviewed).
+
+| # | Files | Defect / change | Verification | Disposition |
+| --- | --- | --- | --- | --- |
+| 57 | includes/corefunctions.php, includes/mysqli_functions.php (guarded helpers) | Passwords were unsalted MD5 with no upgrade path (the fork's #1 documented limit). | runtime.php pins hash format, md5+bcrypt verify, needs-upgrade detection, session salt; security.php §10 pins the login upgrade end to end. | fixed: `ef_hash_password`/`ef_verify_password`/`ef_password_needs_upgrade`/`ef_session_salt`; MD5 rows upgrade transparently at the next successful login; the session/cookie salt derives from the post-upgrade stored hash. |
+| 58 | includes/mysqli_functions.php (`ef_ensure_password_column`, `ef_password_column_length`), update.php, install/upgrade_modern_passwords.sql | A 60-char bcrypt hash cannot fit `varchar(40)`; a naive widening breaks on MySQL 8+/9.x strict mode (eFiction's zero-date defaults fail the CHANGE COLUMN re-validation) and on ALTER-denied hosts. | database.php round trip; security.php fallback arms; update.php form/tokenless-POST checks; probed directly against MySQL 9.3 and the harness schema. | fixed: idempotent widening via raw `$dbconnect` (dbquery is deliberately fatal on failure), with session sql_mode relaxed for the one statement and restored after; applied lazily at every password write, offered as a level-1 CSRF-tokened form on update.php, and scriptable. ALTER-denied hosts stay in working MD5 mode. |
+| 59 | user/login.php, bridges/default/login.php, user/editbio.php, bridges/default/editbio.php, user/lostpassword.php, bridges/default/lostpassword.php, admin/members.php, install/install.php | Nine password call sites still wrote or compared raw MD5; the default bridge also set remember-me cookies before verification and used an arithmetic salt (`md5($email + $hash)`, a TypeError on PHP 8) that bridges/default/get_session_vars.php:30,45 shared. | security.php §10 (login upgrade, re-login, wrong password, remember-me, lost-password arms, admin reset); http.sh fresh-install bcrypt + varchar(255) assertions; runtime.php no-arithmetic-salt sweep now includes the bridge file. | fixed: every write site hashes via the helpers with the MD5 fallback; bridge cookie/salt bugs fixed; the fresh installer creates a varchar(255) schema and a bcrypt admin. |
+| 60 | includes/phpmailer/ (vendored 6.12.0), includes/emailer.php, CREDITS.md; removed includes/class.phpmailer.php, class.smtp.php, PHPMailerAutoload.php, languages/mailer/ | The bundled PHPMailer 5.x line carries known CVE exposure (including the historical autoloader vector); the official 3.5.7's adapted emailer itself required nonexistent file paths and would have fataled on first send. | lint.sh over the vendored tree; runtime.php pins the 6.12.0 VERSION and encodeFile on PHP 8; security.php's mail-path checks stay green. | fixed: PHPMailer 6.12.0 vendored from the official release zip with corrected require paths; boolean send contract preserved for every caller. |
+
+Also in this release: the README title becomes "eFiction 3.5.5+" with a
+Releases section distinguishing maint.1 (3.5.5 line, MD5) from maint.2
+(bcrypt + 3.5.7-database support); update.php's message covers official 3.5.7
+databases (bcrypt rows verify unchanged); CI widens to PHP 8.3/8.4/8.5; and
+an upstream canary workflow opens a tracking issue when update.efiction.org
+ships a release newer than the tested one.
 
 ## New files added by this fork
 

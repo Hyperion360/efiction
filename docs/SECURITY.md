@@ -22,10 +22,10 @@ already fixed and listed with reproductions in
 [CHANGES-MAINTENANCE.md](../CHANGES-MAINTENANCE.md). What remains is below, one line
 each, so you can decide with the migration path in view.
 
-## Cannot be fixed without leaving the contract
+## Fixed in v3.5.5-maint.2 (kept here for archives on maint.1)
 
-- **Passwords are unsalted MD5.** The `varchar(40)` column cannot hold a modern hash, so the fix needs the schema change this fork forbids; treat every database dump as credential material.
-- **Remember-me cookies are derived from database values** (`md5(email . password_hash)`), so anyone who reads the database can forge them for every account.
+- **Passwords were unsalted MD5 through maint.1.** Since maint.2, passwords hash with `password_hash()` (bcrypt): legacy MD5 rows upgrade transparently at each member's next successful login, after which old database dumps no longer verify. On hosts that deny the one idempotent column widening, the fork stays in working MD5 mode — those archives should treat dumps as credential material until the column is widened or they migrate.
+- **Remember-me cookies are derived from database values** (`md5(email . stored_hash)`), so anyone who reads the database can forge them for every account; since maint.2 the derivation uses the per-user bcrypt hash, and the cookies are httponly/Lax, but database read still means cookie forgery.
 
 ## Upstream design kept, with operator mitigations
 

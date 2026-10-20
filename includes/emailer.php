@@ -53,18 +53,21 @@ function sendemail($to_name,$to_email,$from_name,$from_email,$subject,$message,$
 	// Try to determine the right $type setting
  	if(strpos($message, "<br>") || strpos($message, "</p>") || strpos($message, "<br />") || strpos($message, "<br>") || strpos($message, "<a href")) $type = "html";
 	
-	require_once(_BASEDIR."includes/PHPMailerAutoload.php");
-	$mail = new PHPMailer;
-	if(file_exists(_BASEDIR."languages/mailer/phpmailer.lang-".$language.".php"))
-		$mail->SetLanguage($language, _BASEDIR."languages/mailer/");
-	else 
-		$mail->SetLanguage("en", _BASEDIR."languages/mailer/");
+	// Maintenance fork (3.5.7 port): PHPMailer 6.12 replaces the 5.x bundle.
+	// Paths point at the vendored 6.12.0 tree (the official 3.5.7 release's
+	// own emailer required nonexistent top-level shims). Exceptions stay off
+	// so Send() keeps returning the boolean every caller tests.
+	require_once(_BASEDIR."includes/phpmailer/PHPMailer-6.12.0/src/PHPMailer.php");
+	require_once(_BASEDIR."includes/phpmailer/PHPMailer-6.12.0/src/SMTP.php");
+	require_once(_BASEDIR."includes/phpmailer/PHPMailer-6.12.0/src/Exception.php");
+	$mail = new \PHPMailer\PHPMailer\PHPMailer(false);
+	$mail->setLanguage($language, _BASEDIR."includes/phpmailer/language/"); // falls back to English when a translation is missing
 
 	if(!$smtp_host) {
-		$mail->IsMail( );
+		$mail->isMail( );
 	}
-	else { 
-		$mail->IsSMTP( );
+	else {
+		$mail->isSMTP( );
 		$mail->Host = $smtp_host;
 		$mail->SMTPAuth = true;
 		$mail->Username = $smtp_username;
@@ -73,36 +76,36 @@ function sendemail($to_name,$to_email,$from_name,$from_email,$subject,$message,$
 	$mail->CharSet = _CHARSET;
 	$mail->From = $from_email;
 	$mail->FromName = $from_name;
-	$mail->AddAddress($to_email, $to_name);
-	$mail->AddReplyTo($from_email, $from_name);
+	$mail->addAddress($to_email, $to_name);
+	$mail->addReplyTo($from_email, $from_name);
 	if($cc) {
 		$cc = explode(", ", $cc);
 		foreach ($cc as $ccaddress) {
-			$mail->AddCC($ccaddress);
+			$mail->addCC($ccaddress);
 		}
 	}
 	if ($bcc) {
 		$bcc = explode(", ", $bcc);
 		foreach ($bcc as $bccaddress) {
-			$mail->AddBCC($bccaddress);
+			$mail->addBCC($bccaddress);
 		}
 	}
 	if ($type == "plain") {
-		$mail->IsHTML(false);
+		$mail->isHTML(false);
 	} else {
-		$mail->IsHTML(true);
+		$mail->isHTML(true);
 	}
-	
+
 	$mail->Subject = $subject;
 	$mail->Body = $message;
-	if(!$mail->Send()) {
-		$mail->ErrorInfo;
-		$mail->ClearAllRecipients();
-		$mail->ClearReplyTos();
+	if(!$mail->send()) {
+		// last mail error available as $mail->ErrorInfo for debugging
+		$mail->clearAllRecipients();
+		$mail->clearReplyTos();
 		return false;
 	} else {
-		$mail->ClearAllRecipients(); 
-		$mail->ClearReplyTos();
+		$mail->clearAllRecipients();
+		$mail->clearReplyTos();
 		return true;
 	}
 

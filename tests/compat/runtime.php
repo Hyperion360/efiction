@@ -84,20 +84,21 @@ foreach (array('user/login.php', 'includes/get_session_vars.php') as $f) {
     check("$f uses no arithmetic md5 salt", preg_match('/md5\([^)]*\+[^)]*\)/', $src) !== 1);
 }
 
-// Mail encoding: PHPMailer encodeFile must run on PHP 8 where
-// get/set_magic_quotes_runtime no longer exist.
-require_once $root . '/includes/class.phpmailer.php';
+// Mail encoding: PHPMailer 6.12 (vendored, 3.5.7 port) encodeFile runs on
+// PHP 8 — the old 5.x bundle called get/set_magic_quotes_runtime.
+require_once $root . '/includes/phpmailer/PHPMailer-6.12.0/src/PHPMailer.php';
 $tmp = tempnam(sys_get_temp_dir(), 'efmail');
 $payload = "attachment payload \xC3\xA4\n";
 file_put_contents($tmp, $payload);
-$mail = new PHPMailer(true);
-$m = new ReflectionMethod('PHPMailer', 'encodeFile');
+$mail = new PHPMailer\PHPMailer\PHPMailer(true);
+$m = new ReflectionMethod('PHPMailer\PHPMailer\PHPMailer', 'encodeFile');
 $m->setAccessible(true);
 $encoded = $m->invoke($mail, $tmp, 'base64');
 check('phpmailer encodeFile runs on php 8', base64_decode($encoded) === $payload);
 unlink($tmp);
-$pm = file_get_contents($root . '/includes/class.phpmailer.php');
+$pm = file_get_contents($root . '/includes/phpmailer/PHPMailer-6.12.0/src/PHPMailer.php');
 check('phpmailer has no removed magic-quote calls', strpos($pm, 'get_magic_quotes_runtime') === false && strpos($pm, 'set_magic_quotes_runtime') === false);
+check('phpmailer is the vendored 6.12.0 release', strpos(file_get_contents($root . '/includes/phpmailer/PHPMailer-6.12.0/VERSION'), '6.12.0') !== false);
 
 if ($fails) {
     fwrite(STDERR, "$fails failure(s)\n");

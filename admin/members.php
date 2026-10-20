@@ -94,7 +94,7 @@ $confirm = isset($_POST['confirm']) ? $_POST['confirm'] : false;
 			for($i = 0; $i < 10; $i++) $pass .= $charset[random_int(0, strlen($charset) - 1)];
 			// Maintenance fork (3.5.7 port): bcrypt when the column allows,
 			// valid legacy md5 when the host denies the widening ALTER.
-			$encryppass = ef_ensure_password_column() ? ef_hash_password($pass) : md5($pass);
+			$encryppass = (ef_native_authortable() && ef_ensure_password_column()) ? ef_hash_password($pass) : md5($pass);
 			//$headers = "From: $sitename\n";
 			dbquery("UPDATE "._AUTHORTABLE." SET "._PASSWORDFIELD." = '$encryppass' WHERE uid = '".ef_param('release')."'");
 			

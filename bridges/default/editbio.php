@@ -68,7 +68,7 @@ function random_string ($charset_string, $length)
 						$charset = '23456789' . 'abcdefghijkmnpqrstuvwxyz' . 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 						$pass = random_string($charset, 10);
 						// Maintenance fork (3.5.7 port): bcrypt or legacy md5.
-						$encryppass = ef_ensure_password_column() ? ef_hash_password($pass) : md5($pass);
+						$encryppass = (ef_native_authortable() && ef_ensure_password_column()) ? ef_hash_password($pass) : md5($pass);
 					}
 					else {
 						if($_POST['password'] != $_POST['password2']) {
@@ -80,7 +80,7 @@ function random_string ($charset_string, $length)
 						}
 						$pass = $_POST['password2'];
 						// Maintenance fork (3.5.7 port): bcrypt or legacy md5.
-						$encryppass = ef_ensure_password_column() ? ef_hash_password($pass) : md5($pass);
+						$encryppass = (ef_native_authortable() && ef_ensure_password_column()) ? ef_hash_password($pass) : md5($pass);
 					}
 					dbquery("INSERT INTO ".substr(_AUTHORTABLE, 0, strpos(_AUTHORTABLE, "as author"))." (penname, realname, bio, email, date, password) VALUES ('".escapestring($penname)."', '".escapestring(strip_tags($_POST['realname']))."', '".strip_tags(escapestring($_POST['bio']), $allowed_tags)."', '$email', now(), '$encryppass')");
 					$useruid = dbinsertid( );
@@ -124,7 +124,7 @@ function random_string ($charset_string, $length)
 			if(($_POST['password']) || ($_POST['password2'])) {
 				if($_POST['password'] == $_POST['password2']) {
 					// Maintenance fork (3.5.7 port): bcrypt or legacy md5.
-					$encryppassword = ef_ensure_password_column() ? ef_hash_password($_POST['password']) : md5($_POST['password']);
+					$encryppassword = (ef_native_authortable() && ef_ensure_password_column()) ? ef_hash_password($_POST['password']) : md5($_POST['password']);
 					dbquery("UPDATE "._AUTHORTABLE." SET password='$encryppassword' WHERE uid = '$uid'");
 				}
 				else $output .=  write_error(_PASSWORDTWICE);
@@ -157,15 +157,18 @@ function random_string ($charset_string, $length)
 			// Now we'll update the rest.
 			$result = dbquery("UPDATE "._AUTHORTABLE." SET realname='".descript(strip_tags(escapestring($_POST['realname'])), $allowed_tags)."', email='$email', bio='".descript(strip_tags(escapestring($_POST['bio']), $allowed_tags))."', image='".($imageupload && !empty($_POST['image']) ? escapestring($_POST['image']) : "")."' WHERE uid = '$uid'");
 			if($result) { // only if the info actually got updated.
-				if($oldinfo['email'] != $email) { // Need to reset the session and cookies in this case.
-					// Maintenance fork (3.5.7 port): the salt derives from the
-					// email and the STORED hash. Upstream added the two with
-					// '+' (a TypeError on PHP 8 referencing a name that does
-					// not exist in this scope). Use the row's stored hash when
-					// the password was not just changed, else the new one.
+				// Maintenance fork (3.5.7 port): the salt derives from the RAW
+				// email and the STORED hash — get_session_vars recomputes it
+				// from the unescaped row value, so the escaped $email must
+				// never be used here (emails may legally contain quotes).
+				// Upstream compared/added the escaped and raw values with
+				// '+' (a TypeError on PHP 8 referencing a name that does not
+				// exist in this scope).
+				$rawemail = isset($_POST['email']) && is_string($_POST['email']) ? $_POST['email'] : (string) $oldinfo['email'];
+				if($oldinfo['email'] != $rawemail) { // Need to reset the session and cookies in this case.
 					$storedhash = !empty($encryppassword) ? $encryppassword : $oldinfo['password'];
-					$_SESSION[SITEKEY."_salt"] = ef_session_salt($email, $storedhash);
-					if(isset($_COOKIE[SITEKEY."_salt"])) setcookie(SITEKEY."_salt", ef_session_salt($email, $storedhash), array('expires' => time()+60*60*24*30, 'path' => "/", 'httponly' => true, 'samesite' => 'Lax'));
+					$_SESSION[SITEKEY."_salt"] = ef_session_salt($rawemail, $storedhash);
+					if(isset($_COOKIE[SITEKEY."_salt"])) setcookie(SITEKEY."_salt", ef_session_salt($rawemail, $storedhash), array('expires' => time()+60*60*24*30, 'path' => "/", 'httponly' => true, 'samesite' => 'Lax'));
 				}
 			}
 			$output .= write_message(_ACTIONSUCCESSFUL."  ".(isset($_GET['uid']) ? _BACK2ADMIN : _BACK2ACCT));

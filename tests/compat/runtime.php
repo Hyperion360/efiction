@@ -59,8 +59,15 @@ check('ef_verify_password accepts md5 legacy and bcrypt',
     && !ef_verify_password('wrong', ef_hash_password('swordfish')));
 check('ef_password_needs_upgrade detects only md5',
     ef_password_needs_upgrade(md5('x')) === true
-    && ef_password_needs_upgrade(ef_hash_password('x')) === false
-    && ef_password_needs_upgrade('0') === false);
+        && ef_password_needs_upgrade(ef_hash_password('x')) === false
+        && ef_password_needs_upgrade('0') === false);
+// Adversarial-review finding: crafted password[] POST fields must never
+// reach md5()/password_hash()/password_verify(), which TypeError on arrays
+// (a remotely triggerable HTTP 500 on the login form).
+check('password helpers tolerate array-typed input without fatals',
+    ef_verify_password(array('x'), md5('x')) === false
+        && is_string(ef_hash_password(array('x')))
+        && ef_verify_password(array('x'), ef_hash_password('swordfish')) === false);
 $pw_stored = ef_hash_password('swordfish');
 check('ef_session_salt derives from stored hash',
     ef_session_salt('a@b.c', $pw_stored) === md5('a@b.c' . $pw_stored)
@@ -95,6 +102,19 @@ foreach (array('user/login.php', 'includes/get_session_vars.php') as $f) {
     $src = file_get_contents($root . '/' . $f);
     check("$f uses no arithmetic md5 salt", preg_match('/md5\([^)]*\+[^)]*\)/', $src) !== 1);
 }
+
+// Adversarial-review findings, pinned at source level (the harness drives
+// the main copies end to end; the default-bridge copies must carry the same
+// gates): the bridge's uid cookie passes isNumber before SQL, and the
+// bridge's lost-password escapes the email and never seeds mt_srand.
+$bridgeSession = file_get_contents($root . '/bridges/default/get_session_vars.php');
+check('bridge get_session_vars gates the uid cookie with isNumber',
+    strpos($bridgeSession, 'isNumber($_COOKIE[$sitekey."_useruid"])') !== false);
+$bridgeLost = file_get_contents($root . '/bridges/default/lostpassword.php');
+check('bridge lost-password escapes the email before SQL',
+    strpos($bridgeLost, "escapestring(descript(\$_POST['email']))") !== false);
+check('bridge lost-password never seeds mt_srand',
+    strpos($bridgeLost, 'mt_srand') === false);
 
 // Mail encoding: PHPMailer 6.12 (vendored, 3.5.7 port) encodeFile runs on
 // PHP 8 — the old 5.x bundle called get/set_magic_quotes_runtime.

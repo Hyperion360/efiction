@@ -462,6 +462,9 @@ function ef_param($name) {
 // CSRF helpers above so the installer inherits them.
 if(!function_exists("ef_hash_password")) {
 function ef_hash_password($plain) {
+	// A non-string plain value (crafted password[] POST fields) must never
+	// reach md5()/password_hash(), which TypeError on arrays.
+	if(!is_string($plain)) $plain = '';
 	return password_hash($plain, PASSWORD_DEFAULT);
 }
 }
@@ -474,6 +477,7 @@ if(!function_exists("ef_verify_password")) {
 // Returns true for a matching bcrypt hash OR a matching legacy 32-hex MD5
 // (which callers then upgrade via ef_hash_password + ef_ensure_password_column).
 function ef_verify_password($plain, $stored) {
+	if(!is_string($plain)) $plain = '';
 	if(!is_string($stored) || $stored === "" || $stored === "0") return false;
 	if(ef_password_needs_upgrade($stored)) return hash_equals($stored, md5($plain));
 	return password_verify($plain, $stored);
@@ -482,6 +486,16 @@ function ef_verify_password($plain, $stored) {
 if(!function_exists("ef_session_salt")) {
 function ef_session_salt($email, $storedhash) {
 	return md5($email . $storedhash);
+}
+}
+if(!function_exists("ef_native_authortable")) {
+// True only when _AUTHORTABLE is eFiction's own fanfiction_authors table.
+// Passwords are hashed with password_hash() ONLY in that case: a foreign
+// bridge (SMF, php-fusion...) keeps its own narrow password column and its
+// own hashing scheme, so writes stay legacy md5 and upgrades are skipped.
+function ef_native_authortable() {
+	if(!defined("_AUTHORTABLE") || !defined("TABLEPREFIX")) return false;
+	return strpos(_AUTHORTABLE, TABLEPREFIX."fanfiction_authors") === 0;
 }
 }
 // May be needed for sites that have bridged the authors table

@@ -498,6 +498,16 @@ check("admin member reset issues bcrypt",
 // Reset for later sections so md5-era assumptions elsewhere still hold:
 $db->query("UPDATE fanfiction_authors SET password = '" . md5('memberpass123') . "' WHERE penname = 'OtherMember'");
 
+// update.php widen form: the §10 login above already widened this fixture's
+// column, so the admin form must be absent; a tokenless widen POST is inert.
+get("$base/update.php", $body, $status, $adminJar);
+check("update.php hides the widen form once the column is wide",
+    strpos((string) $body, "Widen password column") === false);
+post("$base/update.php", array('widen' => '1'), $body, $status, $adminJar);
+$plen = (int) row_scalar($db, "SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fanfiction_authors' AND COLUMN_NAME = 'password'");
+check("tokenless widen POST changes nothing",
+    $plen === 255);
+
 // ---- teardown ---------------------------------------------------------------
 if ($fails) {
 	// Keep the disposable environment for inspection unless KEEP_WORK=0.

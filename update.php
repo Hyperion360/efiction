@@ -45,13 +45,27 @@ $tpl->printToScreen();
 dbclose( );
 exit( );
 }
-// Maintenance fork: this updater performs no database changes. The fork is
-// file compatible with eFiction 3.5.5 (same schema); anything older must
-// reach a verified 3.5.5 copy first. There is deliberately no GET or POST
-// mutation left on this page.
+// Maintenance fork: this updater performs no automatic database changes. The
+// fork is file compatible with eFiction 3.5.5 and official 3.5.7 databases;
+// anything older must reach a verified 3.5.5 copy first. The one schema step
+// the fork can ever need — widening the password column for password_hash() —
+// applies itself automatically at the first password write; the tokened form
+// below lets the main administrator apply it up front (idempotent).
+if(isset($_POST['widen']) && defined("uLEVEL") && uLEVEL == 1 && ef_csrf_verify()) {
+	ef_ensure_password_column();
+}
+if(defined("uLEVEL") && uLEVEL == 1) {
+	$plen = ef_password_column_length();
+	if($plen !== false && $plen < 255) {
+		$output .= "<div><form method=\"post\" action=\"update.php\">"
+			. "<p>This archive's password column is still varchar($plen). It will be widened automatically at the first password write; you can also widen it now (idempotent).</p>"
+			. ef_csrf_field() . "<input type=\"hidden\" name=\"widen\" value=\"1\" />"
+			. "<input type=\"submit\" value=\"Widen password column\" /></form></div>";
+	}
+}
 $settingsVersion = isset($settings['version']) ? (string) $settings['version'] : "";
 if(version_compare($settingsVersion, "3.5.5", ">=")) {
-	$output .= write_message("This archive reports version ".htmlspecialchars($settingsVersion, ENT_QUOTES, 'UTF-8').". The maintenance fork needs no database update for 3.5.5 archives: upload the maintenance files over the existing files, preserving config.php and your uploaded stories, then reload your site. This page performs no writes.");
+	$output .= write_message("This archive reports version ".htmlspecialchars($settingsVersion, ENT_QUOTES, 'UTF-8').". The maintenance fork runs on any official 3.5.x database, including 3.5.7 (existing bcrypt hashes verify unchanged, legacy MD5 hashes upgrade transparently at each member's next login). Upload the maintenance files over the existing files, preserving config.php and your uploaded stories, then reload your site.");
 }
 else {
 	$output .= write_error("This archive reports version ".($settingsVersion !== "" ? "'".htmlspecialchars($settingsVersion, ENT_QUOTES, 'UTF-8')."'" : "unknown").". The maintenance fork updates only from eFiction 3.5.5. First bring the archive to a verified eFiction 3.5.5 copy (upstream stable source: https://github.com/eFiction/v3_stable), back up your files and database, and only then install the maintenance files. No in-place database upgrade from older versions is provided.");

@@ -59,6 +59,25 @@ function ef_session_salt($email, $storedhash) {
 }
 }
 
+if(!function_exists("ef_password_column_length")) {
+	// Returns the password column's current width, or false when it cannot
+	// be read (hidden INFORMATION_SCHEMA, early bootstrap). Shared by
+	// ef_ensure_password_column() and update.php's admin form.
+	function ef_password_column_length() {
+		global $dbconnect;
+		if(!$dbconnect) return false;
+		try {
+			$result = $dbconnect->query("SELECT CHARACTER_MAXIMUM_LENGTH AS l FROM INFORMATION_SCHEMA.COLUMNS
+				WHERE TABLE_SCHEMA = DATABASE()
+				AND TABLE_NAME = '".TABLEPREFIX."fanfiction_authors' AND COLUMN_NAME = 'password'");
+			$row = $result ? $result->fetch_assoc() : null;
+			return ($row && isset($row['l'])) ? (int)$row['l'] : false;
+		} catch(\mysqli_sql_exception $e) {
+			return false;
+		}
+	}
+}
+
 if(!function_exists("ef_ensure_password_column")) {
 	// Widens fanfiction_authors.password to varchar(255) exactly once per
 	// request. Returns true when the column can hold password_hash() output.

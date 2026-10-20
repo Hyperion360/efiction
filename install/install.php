@@ -1079,7 +1079,9 @@ $output .= write_message(_TABLEFAILED."<br /><br /><a href='install.php?step=4'>
 
 	break;
 
-	case "2";
+	// Maintenance fork (PHP 8.5): a semicolon after case is deprecated and
+	// emitted Deprecated output into the installer pages; colon form.
+	case "2":
 		include("../config.php");
 		$settingsprefix = ef_sql_prefix(isset($settingsprefix) ? $settingsprefix : "");
 		if(dbnumrows(dbquery("SHOW TABLES LIKE '".$settingsprefix."fanfiction_settings'"))) {

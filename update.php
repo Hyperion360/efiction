@@ -52,7 +52,15 @@ exit( );
 // applies itself automatically at the first password write; the tokened form
 // below lets the main administrator apply it up front (idempotent).
 if(isset($_POST['widen']) && defined("uLEVEL") && uLEVEL == 1 && ef_csrf_verify()) {
-	ef_ensure_password_column();
+	// Adversarial-review finding: the one mutation this page performs must
+	// not fail silently (a denied ALTER on shared hosting re-shows the form
+	// with no explanation).
+	if(ef_ensure_password_column()) {
+		$output .= "<div><p>The password column is now varchar(255).</p></div>";
+	}
+	else {
+		$output .= "<div><p>The host refused the column widening (the database user may lack ALTER privilege, or MySQL rejected the rebuild). The fork stays in working MD5 mode; no hash was written. You can retry, apply install/upgrade_modern_passwords.sql by hand, or ask your host to widen fanfiction_authors.password to varchar(255).</p></div>";
+	}
 }
 if(defined("uLEVEL") && uLEVEL == 1) {
 	$plen = ef_password_column_length();

@@ -66,6 +66,18 @@ check('ef_session_salt derives from stored hash',
     ef_session_salt('a@b.c', $pw_stored) === md5('a@b.c' . $pw_stored)
     && ef_session_salt('a@b.c', md5('swordfish')) === md5('a@b.c' . md5('swordfish')));
 
+// Forward compatibility: if a future official release (or a future PHP
+// PASSWORD_DEFAULT) stores argon2id hashes, ef_verify_password already
+// adjudicates them via password_verify and never flags them for md5 upgrade.
+if (defined('PASSWORD_ARGON2ID')) {
+    $argon = password_hash('swordfish', PASSWORD_ARGON2ID);
+    check('ef_verify_password accepts argon2id without upgrade flag',
+        ef_verify_password('swordfish', $argon) && !ef_verify_password('wrong', $argon)
+        && ef_password_needs_upgrade($argon) === false);
+} else {
+    check('argon2id unavailable on this runtime (skipped, pinned by CI)', true);
+}
+
 // Login salt: the four salt sites must use string concatenation. Arithmetic
 // addition on strings is a TypeError on PHP 8, which broke login and the
 // remember-me cookie.

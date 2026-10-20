@@ -30,6 +30,37 @@ function ef_ip_log_key($ip) {
 }
 }
 
+if(!function_exists("ef_ensure_password_column")) {
+	// Widens fanfiction_authors.password to varchar(255) exactly once per
+	// request. Returns true when the column can hold password_hash() output.
+	// On any failure returns false and the caller MUST fall back to writing
+	// legacy md5 (never a truncated bcrypt). T1/T3: unknown length or an
+	// INFORMATION_SCHEMA the host hides both route through the ALTER attempt.
+	// Raw $dbconnect + catch: dbquery() is deliberately fatal on failure
+	// (mysqli_functions.php:50-65) and this seam must be returnable.
+	function ef_ensure_password_column() {
+		static $ok = null;
+		if($ok !== null) return $ok;
+		$ok = false;
+		global $dbconnect;
+		if(!$dbconnect) return false;
+		try {
+			$result = $dbconnect->query("SELECT CHARACTER_MAXIMUM_LENGTH AS l FROM INFORMATION_SCHEMA.COLUMNS
+				WHERE TABLE_SCHEMA = DATABASE()
+				AND TABLE_NAME = '".TABLEPREFIX."fanfiction_authors' AND COLUMN_NAME = 'password'");
+			$row = $result ? $result->fetch_assoc() : null;
+			if($row && isset($row['l']) && (int)$row['l'] >= 255) { $ok = true; return true; }
+			// Idempotent DDL: re-running CHANGE on an already-wide column succeeds.
+			$alt = $dbconnect->query("ALTER TABLE ".TABLEPREFIX."fanfiction_authors
+				CHANGE `password` `password` varchar(255) NOT NULL default ''");
+			if($alt) $ok = true;
+		} catch(\mysqli_sql_exception $e) {
+			// Denied ALTER / unreadable INFORMATION_SCHEMA: stay in md5 mode.
+		}
+		return $ok;
+	}
+}
+
 function dbquery($query) {
 	global $debug, $headerSent, $dbconnect;
 	if($debug && $headerSent) echo "<!-- $query -->\n";

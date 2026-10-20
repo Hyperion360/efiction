@@ -1,27 +1,34 @@
-# eFiction 3.5.5 maintenance fork (modern PHP + bug & security fixes)
+# eFiction 3.5.5+ maintenance fork (modern PHP + bug & security fixes)
 
 ## This is a maintenance release only. Import/migrate your eFiction archive to [Kiption](https://kiption.com/cloud) ([GitHub](https://github.com/hyperion360/kiption))
 
 This is an unofficial eFiction 3.5.5 maintenance fork for existing archives. It is not affiliated with the original eFiction maintainers. This fork is a maintenance release only: the same eFiction, repaired for current PHP, with no new features. If you want the modern successor with new features and faster page serving, [migrate to Kiption](https://github.com/Hyperion360/kiption#migrating-from-efiction): it imports this archive in one command and is MIT licensed, so there are no copyleft obligations if you extend it. Host Kiption yourself for free, or let [Hyperion360](https://hyperion360.com/) host it for you on [Kiption Cloud](https://kiption.com/cloud). Review the migration report and verify your archive before cutover.
 
-Maintained by [Danilo Stern-Sapad](https://danilosapad.com/) on behalf of [Hyperion360](https://hyperion360.com/). He fixed every defect listed in [CHANGES-MAINTENANCE.md](CHANGES-MAINTENANCE.md), each with its reproduction, and maintains this release line. He also contributed unreleased work to eFiction and to fiction-archive plugins for Nuke-based CMSes in the PHP 5 era, and went on to develop [Kiption](https://github.com/Hyperion360/kiption), the successor written from the ground up as a much better, faster alternative with richer features. The scope of this fork is compatibility repair: the same eFiction 3.5.5 PHP pages, templates, and schema, running on current PHP and database versions. Every change is recorded there with its reproduction. There is no schema change and no new feature work.
+Maintained by [Danilo Stern-Sapad](https://danilosapad.com/) on behalf of [Hyperion360](https://hyperion360.com/). He fixed every defect listed in [CHANGES-MAINTENANCE.md](CHANGES-MAINTENANCE.md), each with its reproduction, and maintains this release line. He also contributed unreleased work to eFiction and to fiction-archive plugins for Nuke-based CMSes in the PHP 5 era, and went on to develop [Kiption](https://github.com/Hyperion360/kiption), the successor written from the ground up as a much better, faster alternative with richer features. The scope of this fork is compatibility repair: the same eFiction 3.5.5 PHP pages, templates, and schema, running on current PHP and database versions, with one deliberate exception — the password column widening described under Upgrade. Every change is recorded there with its reproduction. There is no new feature work.
+
+## Releases
+
+- **v3.5.5-maint.2** (this release) — everything in maint.1, plus bcrypt password storage with transparent MD5 upgrade at each member's next login, support for official eFiction 3.5.7 databases (bcrypt and mixed rows verify unchanged), PHPMailer 6.12 replacing the legacy mailer, a PHP 8.3–8.5 tested ceiling, and compatibility with future official 3.5.x releases.
+- **v3.5.5-maint.1** — the 3.5.5-line release: PHP 8.3/8.4 compatibility repairs and the security-hardening set (CSRF tokens on every admin form and member deletion, login throttles, lost-password enumeration closure, upload validation). Passwords remain legacy MD5 on this line; users of maint.1 who upgrade to maint.2 keep every login.
 
 ## Tested requirements
 
-- PHP 8.3 or 8.4 with the mysqli extension
-- MySQL 8.0 or MariaDB 10.11 (10.6 also verified locally)
+- PHP 8.3, 8.4, or 8.5 with the mysqli extension (8.3 is the floor: older PHP is end-of-life with no security fixes, and archives on hosts that cannot run modern PHP belong on [Kiption](https://kiption.com) — free for individual writers, or [Kiption Cloud](https://kiption.com/cloud) hosting with eFiction migration on paid tiers)
+- MySQL 8.0 or MariaDB 10.11 (10.6 also verified locally; MySQL 9.x verified locally)
 - Apache 2.4 with `.htaccess` enabled for the tested install path; any PHP-capable server works for evaluation
 - A hosting file manager or FTP for upload. No shell, Composer, cron, or Node is required
 
-PHP 8.3 is the supported floor, not a claim that older hosts cannot run it. Each later PHP minor needs revalidation before it is claimed. Testing status: verified in a local Apache 2.4 fixture and against the host matrix above; not tested on a commercial shared-host provider account.
+Each later PHP minor needs revalidation before it is claimed. Testing status: verified in a local Apache 2.4 fixture and against the host matrix above; not tested on a commercial shared-host provider account.
 
 ## Install
 
 Upload the release ZIP, extract it in your web root, place a one-time 64 hex character owner secret in a file beside the web root, and follow the installer in the browser. The secret requirement, the denial probe for that location, and the recovery rules are documented step by step in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). The installer writes `config.php` itself and deletes the secret when the install completes.
 
-## Upgrade from eFiction 3.5.5
+## Upgrade from eFiction 3.5.5 or official 3.5.7
 
-Back up your files and database, then upload the release ZIP over the existing files, keeping `config.php` and your uploaded `stories/` directory. The fork is file compatible with 3.5.5: same schema, no `update.php` migration, nothing to run. Archives older than 3.5.5 must reach a verified eFiction 3.5.5 copy first (upstream stable source: [eFiction/v3_stable](https://github.com/eFiction/v3_stable)).
+Back up your files and database, then upload the release ZIP over the existing files, keeping `config.php` and your uploaded `stories/` directory. The fork is file compatible with 3.5.5 and with official 3.5.7 databases: existing bcrypt hashes from 3.5.7 verify unchanged, and legacy MD5 hashes upgrade to bcrypt transparently at each member's next successful login (members log in once more after the upgrade because the session salt is derived from the stored hash).
+
+The only schema step this fork ever needs is widening `fanfiction_authors.password` to `varchar(255)` so bcrypt hashes fit. It is applied three ways, all idempotent: automatically at the first password write (registration, reset, or login upgrade); up front by the main administrator visiting `update.php` directly and clicking the tokened button; or scripted via `install/upgrade_modern_passwords.sql`. On a host that denies the `ALTER`, the fork stays in working MD5 mode instead of ever storing a truncated hash. Archives older than 3.5.5 must reach a verified eFiction 3.5.5 copy first (upstream stable source: [eFiction/v3_stable](https://github.com/eFiction/v3_stable)).
 
 ## Migrating to Kiption
 
@@ -41,4 +48,4 @@ eFiction is Copyright (c) 2007 by Tammy Keefer, based on eFiction 1.1, Copyright
 
 ## Development
 
-Tests live in `tests/compat/`: a full-tree lint, a runtime probe, a database round trip, browser-install and upgrade harnesses, an Apache release gate under Docker, a security role matrix, and packaging checks. CI runs the same gates on PHP 8.3 and 8.4 against MySQL 8.0 and MariaDB 10.11 (see `.github/workflows/compat.yml`).
+Tests live in `tests/compat/`: a full-tree lint, a runtime probe, a database round trip, browser-install and upgrade harnesses, an Apache release gate under Docker, a security role matrix, and packaging checks. CI runs the same gates on PHP 8.3, 8.4, and 8.5 against MySQL 8.0 and MariaDB 10.11 (see `.github/workflows/compat.yml`), and a weekly canary opens an issue when a new official eFiction release ships so compatibility is re-verified promptly.

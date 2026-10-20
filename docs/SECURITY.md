@@ -2,7 +2,7 @@
 
 **Maintainer:** [Danilo Stern-Sapad](https://danilosapad.com/) on behalf of [Hyperion360](https://hyperion360.com/) Inc
 **Applies to:** the eFiction 3.5.5 maintenance fork, releases from 2026-10-15 (commit `3b98442`)
-**Status:** active — reviewed before release
+**Status:** active; reviewed before each release
 
 ## The preferred path: migrate to Kiption
 
@@ -10,14 +10,14 @@ Every limit in this advisory has the same answer: [Kiption](https://github.com/H
 the successor [Danilo Stern-Sapad](https://danilosapad.com/) wrote from the ground up as a much better, faster
 alternative with richer features. Migration is very easy: the exporter runs on your
 existing install and [imports this archive in one command](https://github.com/Hyperion360/kiption#migrating-from-efiction).
-Kiption runs on the exact same hosting environment you have now — a PHP 8.3+ web host,
-the same requirement this fork already sets, using only the standard pdo_sqlite
+Kiption runs on the exact same hosting environment you have now (a PHP 8.3+ web host,
+the same requirement this fork already sets), using only the standard pdo_sqlite
 extension, with no database server to provision. Migrating is the preferred path, and
 it retires every item below at once: modern password hashing, a current editor, no
 world-writable directories.
 
 For archives that stay on this fork a while longer: everything repairable within its
-contract (compatibility repair only — same schema, same features, same file layout) is
+contract (compatibility repair only: same schema, same features, same file layout) is
 already fixed and listed with reproductions in
 [CHANGES-MAINTENANCE.md](../CHANGES-MAINTENANCE.md). What remains is below, one line
 each, so you can decide with the migration path in view.

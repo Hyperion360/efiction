@@ -29,13 +29,21 @@ if(!defined("_LOGINCHECK")) exit( );
 		$settings = dbquery("SELECT tableprefix, maintenance, sitekey, debug FROM ".$settingsprefix."fanfiction_settings WHERE sitekey = '".$sitekey."'");
 		list($tableprefix, $maintenance, $sitekey, $debug) = dbrow($settings);
 		include_once("includes/queries.php");
+		// Maintenance fork (3.5.7 port): the main login defines this; the
+		// bridge copy must too for the password helpers below.
+		if(!defined("TABLEPREFIX")) define("TABLEPREFIX", $tableprefix);
 		$result = dbquery("SELECT *, "._UIDFIELD." as uid FROM "._AUTHORTABLE." LEFT JOIN ".$tableprefix."fanfiction_authorprefs AS ap ON ap.uid = "._UIDFIELD." WHERE "._PENNAMEFIELD." = '".$_POST['penname']."'");
 		$passwd = dbassoc($result);
 		if($maintenance && $passwd['level'] < 0) {
 			header("Location: maintenance.php");
 			exit( );
 		}
-		$encryptedpassword = md5($_POST['password']);
+		// Maintenance fork (3.5.7 port): verify accepts bcrypt or legacy md5
+		// and upgrades the row transparently; the cookie/session salt derives
+		// from the post-upgrade stored hash. The remember-me cookies now set
+		// only after verification (upstream set them before the check, and the
+		// arithmetic salt was a TypeError on PHP 8).
+		$storedpassword = $passwd['password'];
 		if($passwd['level'] == -1) {
 			require_once("header.php");
 			//make a new TemplatePower object
@@ -44,14 +52,20 @@ if(!defined("_LOGINCHECK")) exit( );
 			include_once("includes/corefunctions.php");
 			accessDenied( );
 		}
-		if(isset($_POST['cookiecheck'])) {
-			setcookie($sitekey."_useruid",$passwd['uid'], time()+60*60*24*30, "/");
-			setcookie($sitekey."_salt", md5($passwd['email']+$encryptedpassword),  time()+60*60*24*30, "/");
-		}
-		if($passwd['password'] == $encryptedpassword) {
+		if(ef_verify_password($_POST['password'], $storedpassword)) {
+			if(ef_password_needs_upgrade($storedpassword) && ef_ensure_password_column()) {
+				$newhash = ef_hash_password($_POST['password']);
+				dbquery("UPDATE ".TABLEPREFIX."fanfiction_authors SET password = '".escapestring($newhash)."' WHERE uid = '".$passwd['uid']."'");
+				$storedpassword = $newhash;
+			}
+			$salt = ef_session_salt($passwd['email'], $storedpassword);
+			if(isset($_POST['cookiecheck'])) {
+				setcookie($sitekey."_useruid", $passwd['uid'], array('expires' => time()+60*60*24*30, 'path' => "/", 'httponly' => true, 'samesite' => 'Lax'));
+				setcookie($sitekey."_salt", $salt, array('expires' => time()+60*60*24*30, 'path' => "/", 'httponly' => true, 'samesite' => 'Lax'));
+			}
 			if(!isset($_SESSION)) session_start( );
 			$_SESSION[$sitekey."_useruid"] = $passwd['uid'];
-			$_SESSION[$sitekey."_salt"] = md5($passwd['email']+$encryptedpassword);
+			$_SESSION[$sitekey."_salt"] = $salt;
 		}
 
 		else { 

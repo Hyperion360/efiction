@@ -71,7 +71,12 @@
 			header("Location: maintenance.php");
 			exit( );
 		}
-		$encryptedpassword = md5($_POST['password']);
+		// Maintenance fork (3.5.7 port): the stored row may be a bcrypt hash
+		// or a legacy 32-hex md5; ef_verify_password adjudicates either. On a
+		// legacy match the row is upgraded transparently (once the column is
+		// widened) and the session/cookie salt derives from the POST-UPGRADE
+		// stored hash, so remember-me survives its own upgrade login.
+		$storedpassword = $passwd['password'];
 		if($passwd['level'] == -1) {
 			require_once("header.php");
 			//make a new TemplatePower object
@@ -84,12 +89,21 @@
 			dbclose( );
 			exit( );
 		}
-		if($passwd['password'] == $encryptedpassword) {
+		if(ef_verify_password($_POST['password'], $storedpassword)) {
+			// Maintenance fork (3.5.7 port): transparent md5-to-bcrypt upgrade
+			// on the first successful login; if the column cannot be widened
+			// the row keeps its valid md5 (never a truncated bcrypt).
+			if(ef_password_needs_upgrade($storedpassword) && ef_ensure_password_column()) {
+				$newhash = ef_hash_password($_POST['password']);
+				dbquery("UPDATE ".TABLEPREFIX."fanfiction_authors SET password = '".escapestring($newhash)."' WHERE uid = '".$passwd['uid']."'");
+				$storedpassword = $newhash;
+			}
+			$salt = ef_session_salt($passwd['email'], $storedpassword);
 			if(isset($_POST['cookiecheck'])) {
 				// Maintenance fork: httponly and Lax on the remember-me pair,
 				// matching the session cookie.
 				setcookie($sitekey."_useruid", $passwd['uid'], array('expires' => time()+60*60*24*30, 'path' => "/", 'httponly' => true, 'samesite' => 'Lax'));
-				setcookie($sitekey."_salt", md5($passwd['email'].$encryptedpassword), array('expires' => time()+60*60*24*30, 'path' => "/", 'httponly' => true, 'samesite' => 'Lax'));
+				setcookie($sitekey."_salt", $salt, array('expires' => time()+60*60*24*30, 'path' => "/", 'httponly' => true, 'samesite' => 'Lax'));
 			}
 			if(!isset($_SESSION)) {
 				// Maintenance fork: match header.php's httponly/Lax session cookie.
@@ -101,7 +115,7 @@
 			// on promotion so a planted session id cannot survive login.
 			session_regenerate_id(true);
 			$_SESSION[$sitekey."_useruid"] = $passwd['uid'];
-			$_SESSION[$sitekey."_salt"] = md5($passwd['email'].$encryptedpassword);
+			$_SESSION[$sitekey."_salt"] = $salt;
 			$logincode = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_codeblocks WHERE code_type = 'login'");
 			while($code = dbassoc($logincode)) {
 				eval($code['code_text']);

@@ -435,6 +435,46 @@ $db->query("DELETE FROM fanfiction_log WHERE log_type = 'LF' AND log_ip = INET_A
 post("$base/user.php?action=login", array('submit' => 'submit', 'penname' => 'FixtureAdmin', 'password' => 'fixturepass123'), $body, $status, $guestJar);
 check("login works again once the throttle window is cleared", $status === '200' && strpos((string) $body, 'name="pswd"') === false);
 
+// ---- 10. bcrypt upgrade-on-login (3.5.7 port) ---------------------------------
+// A legacy md5 row upgrades transparently at login, the same password keeps
+// working, and a wrong password is still rejected. The salt assertion is the
+// re-login itself: get_session_vars compares md5(email . stored_password)
+// unchanged, so a fresh login after the row turned bcrypt proves the salt is
+// derived from the stored hash. The remember-me variant proves the cookie
+// path on a session-less jar (only the uid/salt pair authenticates).
+$upgradeJar = "$work/jar-upgrade";
+post("$base/user.php?action=login", array('submit' => 'submit', 'penname' => 'OtherMember', 'password' => 'memberpass123'), $body, $status, $upgradeJar);
+check("legacy md5 login upgrades row to bcrypt",
+    strncmp((string) row_scalar($db, "SELECT password FROM fanfiction_authors WHERE penname = 'OtherMember'"), '$2y$', 4) === 0);
+
+post("$base/user.php?action=login", array('submit' => 'submit', 'penname' => 'OtherMember', 'password' => 'memberpass123'), $body, $status, $upgradeJar);
+check("bcrypt user re-logins with same password (salt from stored hash)",
+    $status === '200' && strpos((string) $body, 'name="pswd"') === false);
+
+post("$base/user.php?action=login", array('submit' => 'submit', 'penname' => 'OtherMember', 'password' => 'not-the-password'), $body, $status, $upgradeJar);
+check("wrong password rejected after upgrade",
+    strpos((string) $body, "doesn't match the one in our database") !== false);
+// Clear the failed attempt so later runs inherit no throttle rows.
+$db->query("DELETE FROM fanfiction_log WHERE log_type = 'LF' AND log_ip = INET_ATON('127.0.0.1')");
+
+$cookieJar = "$work/jar-upgrade-cookie";
+post("$base/user.php?action=login", array('submit' => 'submit', 'penname' => 'OtherMember', 'password' => 'memberpass123', 'cookiecheck' => '1'), $body, $status, $cookieJar);
+// Strip the PHP session cookie so ONLY the remember-me pair can authenticate;
+// validating then proves the cookie salt was derived from the stored bcrypt
+// hash (md5(email . stored_hash), get_session_vars.php unchanged).
+$jarLines = file($cookieJar, FILE_IGNORE_NEW_LINES);
+$strippedJar = '';
+foreach ($jarLines as $jarLine) {
+    if ($jarLine !== '' && strpos($jarLine, '#') !== 0 && preg_match("/\tPHPSESSID\t/", $jarLine) !== 1) $strippedJar .= "$jarLine\n";
+}
+file_put_contents($cookieJar, $strippedJar);
+get("$base/user.php", $body, $status, $cookieJar);
+check("remember-me cookie authenticates against the bcrypt row",
+    $status === '200' && strpos((string) $body, 'name="pswd"') === false);
+
+// Reset for later sections so md5-era assumptions elsewhere still hold:
+$db->query("UPDATE fanfiction_authors SET password = '" . md5('memberpass123') . "' WHERE penname = 'OtherMember'");
+
 // ---- teardown ---------------------------------------------------------------
 if ($fails) {
 	// Keep the disposable environment for inspection unless KEEP_WORK=0.

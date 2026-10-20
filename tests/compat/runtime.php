@@ -49,6 +49,23 @@ check('descript preserves on-word attribute values', descript('<a title="only on
 check('descript preserves on-word hrefs', strpos(descript('<a href="once.php">link</a>'), 'once.php') !== false);
 check('descript leaves prose untouched', descript('Consider the onclick handler') === 'Consider the onclick handler');
 
+// ef_password_* helpers: hash format, verify, upgrade detection, session salt.
+$pw_hash = ef_hash_password('swordfish');
+check('ef_hash_password produces bcrypt', is_string($pw_hash) && strncmp($pw_hash, '$2y$', 4) === 0 && strlen($pw_hash) === 60);
+check('ef_verify_password accepts md5 legacy and bcrypt',
+    ef_verify_password('swordfish', md5('swordfish'))
+    && ef_verify_password('swordfish', ef_hash_password('swordfish'))
+    && !ef_verify_password('wrong', md5('swordfish'))
+    && !ef_verify_password('wrong', ef_hash_password('swordfish')));
+check('ef_password_needs_upgrade detects only md5',
+    ef_password_needs_upgrade(md5('x')) === true
+    && ef_password_needs_upgrade(ef_hash_password('x')) === false
+    && ef_password_needs_upgrade('0') === false);
+$pw_stored = ef_hash_password('swordfish');
+check('ef_session_salt derives from stored hash',
+    ef_session_salt('a@b.c', $pw_stored) === md5('a@b.c' . $pw_stored)
+    && ef_session_salt('a@b.c', md5('swordfish')) === md5('a@b.c' . md5('swordfish')));
+
 // Login salt: the four salt sites must use string concatenation. Arithmetic
 // addition on strings is a TypeError on PHP 8, which broke login and the
 // remember-me cookie.

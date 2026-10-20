@@ -30,6 +30,35 @@ function ef_ip_log_key($ip) {
 }
 }
 
+// Maintenance fork (3.5.7 port): the password helpers canonically live in
+// corefunctions.php (same guarded seam as the CSRF helpers, so the installer
+// inherits them). user/login.php's early bootstrap runs BEFORE corefunctions
+// is loaded, though, so - like ef_ip_log_key above - the guarded definitions
+// are repeated here. function_exists guards mean only whichever file loads
+// first defines them; the bodies are identical.
+if(!function_exists("ef_hash_password")) {
+function ef_hash_password($plain) {
+	return password_hash($plain, PASSWORD_DEFAULT);
+}
+}
+if(!function_exists("ef_password_needs_upgrade")) {
+function ef_password_needs_upgrade($stored) {
+	return is_string($stored) && strlen($stored) === 32 && ctype_xdigit($stored);
+}
+}
+if(!function_exists("ef_verify_password")) {
+function ef_verify_password($plain, $stored) {
+	if(!is_string($stored) || $stored === "" || $stored === "0") return false;
+	if(ef_password_needs_upgrade($stored)) return hash_equals($stored, md5($plain));
+	return password_verify($plain, $stored);
+}
+}
+if(!function_exists("ef_session_salt")) {
+function ef_session_salt($email, $storedhash) {
+	return md5($email . $storedhash);
+}
+}
+
 if(!function_exists("ef_ensure_password_column")) {
 	// Widens fanfiction_authors.password to varchar(255) exactly once per
 	// request. Returns true when the column can hold password_hash() output.
@@ -38,27 +67,42 @@ if(!function_exists("ef_ensure_password_column")) {
 	// INFORMATION_SCHEMA the host hides both route through the ALTER attempt.
 	// Raw $dbconnect + catch: dbquery() is deliberately fatal on failure
 	// (mysqli_functions.php:50-65) and this seam must be returnable.
-	function ef_ensure_password_column() {
-		static $ok = null;
-		if($ok !== null) return $ok;
-		$ok = false;
-		global $dbconnect;
-		if(!$dbconnect) return false;
-		try {
-			$result = $dbconnect->query("SELECT CHARACTER_MAXIMUM_LENGTH AS l FROM INFORMATION_SCHEMA.COLUMNS
-				WHERE TABLE_SCHEMA = DATABASE()
-				AND TABLE_NAME = '".TABLEPREFIX."fanfiction_authors' AND COLUMN_NAME = 'password'");
-			$row = $result ? $result->fetch_assoc() : null;
-			if($row && isset($row['l']) && (int)$row['l'] >= 255) { $ok = true; return true; }
-			// Idempotent DDL: re-running CHANGE on an already-wide column succeeds.
-			$alt = $dbconnect->query("ALTER TABLE ".TABLEPREFIX."fanfiction_authors
-				CHANGE `password` `password` varchar(255) NOT NULL default ''");
-			if($alt) $ok = true;
-		} catch(\mysqli_sql_exception $e) {
-			// Denied ALTER / unreadable INFORMATION_SCHEMA: stay in md5 mode.
+		function ef_ensure_password_column() {
+			static $ok = null;
+			if($ok !== null) return $ok;
+			$ok = false;
+			global $dbconnect;
+			if(!$dbconnect) return false;
+			try {
+				$result = $dbconnect->query("SELECT CHARACTER_MAXIMUM_LENGTH AS l FROM INFORMATION_SCHEMA.COLUMNS
+					WHERE TABLE_SCHEMA = DATABASE()
+					AND TABLE_NAME = '".TABLEPREFIX."fanfiction_authors' AND COLUMN_NAME = 'password'");
+				$row = $result ? $result->fetch_assoc() : null;
+				if($row && isset($row['l']) && (int)$row['l'] >= 255) { $ok = true; return true; }
+				// eFiction's 3.5.x tables carry zero-date defaults (0000-00-00),
+				// and a CHANGE COLUMN rebuild re-validates the whole definition:
+				// on MySQL 8+/9.x strict mode (NO_ZERO_DATE in the default
+				// sql_mode) the ALTER dies with "Invalid default value" before
+				// touching privileges. MariaDB's default mode permits it. Relax
+				// the session mode for this one statement and restore it after.
+				$mode = $dbconnect->query("SELECT @@SESSION.sql_mode AS m")->fetch_assoc();
+				$oldmode = is_array($mode) && isset($mode['m']) ? $mode['m'] : "";
+				try {
+					$dbconnect->query("SET SESSION sql_mode = ''");
+					// Idempotent DDL: re-running CHANGE on an already-wide column succeeds.
+					$alt = $dbconnect->query("ALTER TABLE ".TABLEPREFIX."fanfiction_authors
+						CHANGE `password` `password` varchar(255) NOT NULL default ''");
+					if($alt) $ok = true;
+				} catch(\mysqli_sql_exception $inner) {
+					// Denied ALTER even with the relaxed mode: stay in md5 mode.
+				} finally {
+					try { $dbconnect->query("SET SESSION sql_mode = '".$oldmode."'"); } catch(\mysqli_sql_exception $restore) { }
+				}
+			} catch(\mysqli_sql_exception $e) {
+				// Unreadable INFORMATION_SCHEMA: stay in md5 mode.
+			}
+			return $ok;
 		}
-		return $ok;
-	}
 }
 
 function dbquery($query) {

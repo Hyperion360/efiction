@@ -45,27 +45,39 @@ if($loggedin) accessDenied( );
 	$output = "<div id=\"pagetitle\">"._LOSTPASSWORD."</div>";
 
 	  if(isset($_POST['submit'])) {
-		  $result = dbquery("SELECT "._UIDFIELD." as uid, "._PENNAMEFIELD." as penname FROM "._AUTHORTABLE." WHERE email = '$_POST[email]'");
+		  // Maintenance fork: the main copy's hardening, ported to the bridge —
+		  // escaped email (SQLi), a rate limit on LP log rows (no schema change,
+		  // five resets per address per hour), a uniform response that no longer
+		  // distinguishes known from unknown addresses (enumeration), and a
+		  // crypto-random reset password (upstream seeded mt_rand from the
+		  // request microtime, making it brute-forceable from the seed window).
+		  $recentresets = dbrow(dbquery("SELECT COUNT(*) FROM ".TABLEPREFIX."fanfiction_log WHERE log_type = 'LP' AND log_ip = ".ef_ip_log_key($_SERVER['REMOTE_ADDR'])." AND log_timestamp > (NOW() - INTERVAL 1 HOUR)"));
+		  $recentresets = is_array($recentresets) ? (int) reset($recentresets) : 0;
+		  $result = dbquery("SELECT "._UIDFIELD." as uid, "._PENNAMEFIELD." as penname FROM "._AUTHORTABLE." WHERE email = '".strtolower(escapestring(descript($_POST['email'])))."'");
 		  list($uid, $penname) = dbrow($result);
-		  if(dbnumrows($result) == 0) $output .= write_message(_BADEMAIL);
+		  if($recentresets >= 5 || dbnumrows($result) == 0) $output .= write_message(_PASSWORDSENT);
 		  else {
 			include("includes/emailer.php");
-			mt_srand((double)microtime() * 1000000);
-			$charset = '23456789' . 'abcdefghijkmnpqrstuvwxyz' . 'ABCDEFGHJKLMNPQRSTUVWXYZ';		
-			$pass = random_string($charset, 10);
-			// Maintenance fork (3.5.7 port): bcrypt or legacy md5.
-			$encryppass = ef_ensure_password_column() ? ef_hash_password($pass) : md5($pass);
+			$charset = '23456789' . 'abcdefghijkmnpqrstuvwxyz' . 'ABCDEFGHJKLMNPQRSTUVWXYZ';
+			$pass = '';
+			for($i = 0; $i < 10; $i++) $pass .= $charset[random_int(0, strlen($charset) - 1)];
+			// Maintenance fork (3.5.7 port): bcrypt only when the write target
+			// is the native authors table and the column allows it.
+			$encryppass = (ef_native_authortable() && ef_ensure_password_column()) ? ef_hash_password($pass) : md5($pass);
 			$subject = _NEWPWDSUB;
 			$mailtext = sprintf(_NEWPWDMSG, $pass);
 
-		
+
 			$result = sendemail($penname, $_POST['email'], $sitename, $siteemail, $subject, $mailtext, "html");
+			// Maintenance fork: the reset rate limit counts every mailed
+			// reset, independent of the site logging setting.
+			dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_log (`log_action`, `log_uid`, `log_ip`, `log_type`, `log_timestamp`) VALUES('password reset', '".$uid."', ".ef_ip_log_key($_SERVER['REMOTE_ADDR']).", 'LP', NOW())");
 			if($result) {
 				$output .= write_message(_PASSWORDSENT);
 				dbquery("UPDATE "._AUTHORTABLE." SET password='$encryppass' WHERE uid = '".$uid."'");
 			}
 			else $output .=  write_message(_EMAILFAILED);
-			if($logging) 
+			if($logging)
 				dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_log (`log_action`, `log_uid`, `log_ip`, `log_type`) VALUES('".escapestring(sprintf(_LOG_LOST_PASSWORD, $penname, $uid, ($result ? _YES : _NO)))."', '$uid', INET_ATON('".$_SERVER['REMOTE_ADDR']."'), 'LP')");
 
 		}

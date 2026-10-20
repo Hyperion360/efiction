@@ -441,7 +441,9 @@ if($ef_action === "recover") {
 			// Maintenance fork (PHP 8.3+): the bare keys below are quoted.
 			// An undefined bare constant is a fatal on PHP 8.
 			if(!preg_match("/^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9.-]+$/", $_POST['email'])) $fail = "<div style='text-align: center;'>"._INVALIDEMAIL." "._TRYAGAIN."</div>";
-			if($_POST['password'] == $_POST['password2']) $encryptpassword = md5($_POST['password']);
+			// Maintenance fork (3.5.7 port): the admin account starts on
+			// password_hash() (bcrypt); the schema below widens the column.
+			if($_POST['password'] == $_POST['password2']) $encryptpassword = ef_hash_password($_POST['password']);
 			else $fail =  write_message(_PASSWORDTWICE);
 			if(!isset($fail)) {
 				$result = dbquery("INSERT INTO ".$tableprefix."fanfiction_authors(`penname`, `email`, `password`, `date`) VALUES('$penname', '".$_POST['email']."', '$encryptpassword', now( ))");
@@ -776,7 +778,7 @@ $output .= "<tr><td>".$tableprefix."fanfiction_authorprefs</td><td align='center
   `image` varchar(200) NOT NULL default '',
   `date` datetime NOT NULL default '0000-00-00 00:00:00',
   `admincreated` char(1) NOT NULL default '0',
-  `password` varchar(40) NOT NULL default '0',
+  `password` varchar(255) NOT NULL default '0',
   PRIMARY KEY  (`uid`),
   KEY `penname` (`penname`),
   KEY `admincreated` (`admincreated`)

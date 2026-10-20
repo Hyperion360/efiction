@@ -1,0 +1,11 @@
+-- eFiction maintenance fork: widen the password column for password_hash()
+-- output (bcrypt = 60 chars). Idempotent; adjust the table prefix if your
+-- installation uses a different one. update.php offers the same step, and
+-- the fork applies it automatically at the first password write anyway.
+--
+-- MySQL 8+/9.x strict mode note: eFiction's tables carry zero-date defaults,
+-- which a CHANGE COLUMN rebuild re-validates. Run this with a session that
+-- permits them for the one statement:
+--   SET SESSION sql_mode = '';
+--   ALTER TABLE `fanfiction_authors` CHANGE `password` `password` varchar(255) NOT NULL default '';
+ALTER TABLE `fanfiction_authors` CHANGE `password` `password` varchar(255) NOT NULL default '';

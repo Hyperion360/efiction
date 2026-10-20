@@ -429,6 +429,15 @@ if [ "$MODE" = "fresh" ]; then
 	check_status "step 9 admin creation returns 200" 200 "$status"
 	check_no_php_errors "step 9 has no PHP errors"
 	check "admin account created" test "$(row_count fanfiction_authors)" -gt "$ADMINS_BEFORE"
+	# Maintenance fork (3.5.7 port): the admin starts on password_hash() and
+	# the fresh schema ships a varchar(255) password column.
+	ADMIN_HASH=$(mysql_q "SELECT password FROM \`$DB_NAME\`.\`fanfiction_authors\` ORDER BY uid LIMIT 1" | tail -1)
+	case "$ADMIN_HASH" in
+		'$2y$'*) check "fresh install stores a bcrypt admin" true ;;
+		*) check "fresh install stores a bcrypt admin (got: $ADMIN_HASH)" false ;;
+	esac
+	PWLEN=$(mysql_q "SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.columns WHERE table_schema = '$DB_NAME' AND table_name = 'fanfiction_authors' AND column_name = 'password'" | tail -1)
+	check "fresh schema widens password to varchar(255)" [ "$PWLEN" = "255" ]
 	ADMINS_AFTER=$(row_count fanfiction_authors)
 	# Repeated step 9 submission: the secret is gone after completion, so the
 	# gate denies and the admin count is stable.

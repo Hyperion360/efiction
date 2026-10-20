@@ -32,8 +32,29 @@ if(!defined("_LOGINCHECK")) exit( );
 		// Maintenance fork (3.5.7 port): the main login defines this; the
 		// bridge copy must too for the password helpers below.
 		if(!defined("TABLEPREFIX")) define("TABLEPREFIX", $tableprefix);
+		// Maintenance fork: brute-force throttle on the existing log table,
+		// ported from the main login (no schema change): ten or more failed
+		// logins from this address in the last fifteen minutes lock the form
+		// for fifteen minutes; the count keys on ef_ip_log_key like the
+		// inserts below (INET_ATON is NULL for IPv6).
+		list($recentfails) = dbrow(dbquery("SELECT COUNT(*) FROM ".TABLEPREFIX."fanfiction_log WHERE log_type = 'LF' AND log_ip = ".ef_ip_log_key($_SERVER['REMOTE_ADDR'])." AND log_timestamp > (NOW() - INTERVAL 15 MINUTE)"));
+		if($recentfails >= 10) {
+			require_once("header.php");
+			if(file_exists("$skindir/default.tpl")) $tpl = new TemplatePower( "$skindir/default.tpl" );
+			else $tpl = new TemplatePower("default_tpls/default.tpl");
+			include_once("includes/pagesetup.php");
+			$output = write_error("Too many failed sign-in attempts from this address. Try again in fifteen minutes.");
+			$tpl->assign("output", $output);
+			$tpl->printToScreen( );
+			dbclose( );
+			exit( );
+		}
 		$result = dbquery("SELECT *, "._UIDFIELD." as uid FROM "._AUTHORTABLE." LEFT JOIN ".$tableprefix."fanfiction_authorprefs AS ap ON ap.uid = "._UIDFIELD." WHERE "._PENNAMEFIELD." = '".$_POST['penname']."'");
 		$passwd = dbassoc($result);
+		if(!dbnumrows($result)) {
+			// Maintenance fork: failed attempts are counted for the throttle.
+			dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_log (`log_action`, `log_uid`, `log_ip`, `log_type`, `log_timestamp`) VALUES('failed login', '0', ".ef_ip_log_key($_SERVER['REMOTE_ADDR']).", 'LF', NOW())");
+		}
 		if($maintenance && $passwd['level'] < 0) {
 			header("Location: maintenance.php");
 			exit( );
@@ -53,10 +74,15 @@ if(!defined("_LOGINCHECK")) exit( );
 			accessDenied( );
 		}
 		if(ef_verify_password($_POST['password'], $storedpassword)) {
-			if(ef_password_needs_upgrade($storedpassword) && ef_ensure_password_column()) {
+			// Maintenance fork (3.5.7 port): the upgrade only touches
+			// eFiction's own authors table, compare-and-swap so a row that
+			// changed mid-request is never overwritten, and the salt derives
+			// from whatever is actually stored after the attempt.
+			if(ef_password_needs_upgrade($storedpassword) && ef_native_authortable() && ef_ensure_password_column()) {
 				$newhash = ef_hash_password($_POST['password']);
-				dbquery("UPDATE ".TABLEPREFIX."fanfiction_authors SET password = '".escapestring($newhash)."' WHERE uid = '".$passwd['uid']."'");
-				$storedpassword = $newhash;
+				dbquery("UPDATE ".TABLEPREFIX."fanfiction_authors SET password = '".escapestring($newhash)."' WHERE uid = '".$passwd['uid']."' AND password = '".escapestring($storedpassword)."'");
+				$rerow = dbassoc(dbquery("SELECT "._PASSWORDFIELD." as password FROM "._AUTHORTABLE." WHERE "._UIDFIELD." = '".$passwd['uid']."'"));
+				if($rerow && !empty($rerow['password'])) $storedpassword = $rerow['password'];
 			}
 			$salt = ef_session_salt($passwd['email'], $storedpassword);
 			if(isset($_POST['cookiecheck'])) {
@@ -64,11 +90,16 @@ if(!defined("_LOGINCHECK")) exit( );
 				setcookie($sitekey."_salt", $salt, array('expires' => time()+60*60*24*30, 'path' => "/", 'httponly' => true, 'samesite' => 'Lax'));
 			}
 			if(!isset($_SESSION)) session_start( );
+			// Maintenance fork: rotate the session id on privilege change so a
+			// planted session id cannot survive login (mirrors user/login.php).
+			session_regenerate_id(true);
 			$_SESSION[$sitekey."_useruid"] = $passwd['uid'];
 			$_SESSION[$sitekey."_salt"] = $salt;
 		}
 
-		else { 
+		else {
+			// Maintenance fork: failed attempts are counted for the throttle.
+			dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_log (`log_action`, `log_uid`, `log_ip`, `log_type`, `log_timestamp`) VALUES('failed login', '0', ".ef_ip_log_key($_SERVER['REMOTE_ADDR']).", 'LF', NOW())");
 			require_once("header.php");
 			//make a new TemplatePower object
 			if(file_exists("$skindir/default.tpl")) $tpl = new TemplatePower( "$skindir/default.tpl" );

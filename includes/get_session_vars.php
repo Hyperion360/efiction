@@ -31,7 +31,7 @@ if(!defined("_CHARSET")) exit( );
 // reach the statement; anything else is treated as not logged in.
 if (!empty($_COOKIE[$sitekey."_useruid"]) && isNumber($_COOKIE[$sitekey."_useruid"])) {
 	$userdata = dbassoc(dbquery("SELECT ap.*, "._UIDFIELD." as uid, "._PENNAMEFIELD." as penname, "._EMAILFIELD." as email, "._PASSWORDFIELD." as password FROM "._AUTHORTABLE." LEFT JOIN ".TABLEPREFIX."fanfiction_authorprefs as ap ON ap.uid = "._UIDFIELD." WHERE "._UIDFIELD." = '".$_COOKIE[$sitekey."_useruid"]."'"));
-	if($userdata && $userdata['level'] != -1 && $_COOKIE[$sitekey.'_salt'] == md5($userdata['email'].$userdata['password'])) {
+	if($userdata && $userdata['level'] != -1 && hash_equals(md5($userdata['email'].$userdata['password']), (string) $_COOKIE[$sitekey.'_salt'])) {
 		define("USERUID", $userdata['uid']);
 		define("USERPENNAME", $userdata['penname']);
 		// the following line fixes missing authorpref rows
@@ -48,7 +48,7 @@ if (!empty($_COOKIE[$sitekey."_useruid"]) && isNumber($_COOKIE[$sitekey."_userui
 }
 if(!empty($_SESSION[$sitekey."_useruid"]) && !defined("USERUID")) {
 	$userdata = dbassoc(dbquery("SELECT ap.*, "._UIDFIELD." as uid, "._PENNAMEFIELD." as penname, "._EMAILFIELD." as email, "._PASSWORDFIELD." as password FROM "._AUTHORTABLE." LEFT JOIN ".TABLEPREFIX."fanfiction_authorprefs as ap ON ap.uid = "._UIDFIELD." WHERE "._UIDFIELD." = '".$_SESSION[$sitekey."_useruid"]."'"));
-	if($userdata && $userdata['level'] != -1 && $_SESSION[$sitekey.'_salt'] == md5($userdata['email'].$userdata['password'])) {
+	if($userdata && $userdata['level'] != -1 && hash_equals(md5($userdata['email'].$userdata['password']), (string) $_SESSION[$sitekey.'_salt'])) {
 		define("USERUID", $userdata['uid']);
 		define("USERPENNAME", $userdata['penname']);
 		// the following line fixes missing authorpref rows

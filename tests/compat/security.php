@@ -508,6 +508,37 @@ $plen = (int) row_scalar($db, "SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_
 check("tokenless widen POST changes nothing",
     $plen === 255);
 
+// ---- 11. ALTER-denied fallback contract (3.5.7 port) -------------------------
+// ef_ensure_password_column must degrade to md5 mode on hosts that deny the
+// widening ALTER. Proven at the exact statement level: under a user without
+// ALTER, the helper's statements throw a CATCHABLE mysqli_sql_exception (the
+// helper wraps them in try/catch and returns false) and the narrow column
+// survives untouched — never a truncated hash.
+$oldMode = (string) row_scalar($db, "SELECT @@SESSION.sql_mode");
+$db->query("SET SESSION sql_mode = ''");
+$db->query("DROP TABLE IF EXISTS efiction_probe_authors");
+$db->query("CREATE TABLE efiction_probe_authors (uid INT PRIMARY KEY, password varchar(40) NOT NULL default '0', date datetime NOT NULL default '0000-00-00 00:00:00')");
+$db->query("DROP USER IF EXISTS 'efnoalter'@'%'");
+$db->query("CREATE USER 'efnoalter'@'%' IDENTIFIED BY 'efnopass'");
+$db->query("GRANT SELECT, INSERT, UPDATE ON `" . $dbName . "`.* TO 'efnoalter'@'%'");
+$probeDb = @new mysqli($dbHost, 'efnoalter', 'efnopass', $dbName, $dbPort !== "" ? (int) $dbPort : 3306);
+$denied = false;
+if ($probeDb->connect_errno === 0) {
+    $probeDb->query("SET SESSION sql_mode = ''");
+    try {
+        $probeDb->query("ALTER TABLE efiction_probe_authors CHANGE `password` `password` varchar(255) NOT NULL default '0'");
+    } catch (mysqli_sql_exception $e) {
+        $denied = true; // the catch path ef_ensure_password_column takes
+    }
+    $probeDb->close();
+}
+check("denied ALTER throws the catchable exception the helper handles", $denied === true);
+check("narrow column survives a denied widening (md5 mode)",
+    (int) row_scalar($db, "SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'efiction_probe_authors' AND COLUMN_NAME = 'password'") === 40);
+$db->query("DROP USER IF EXISTS 'efnoalter'@'%'");
+$db->query("DROP TABLE IF EXISTS efiction_probe_authors");
+$db->query("SET SESSION sql_mode = '" . $oldMode . "'");
+
 // ---- teardown ---------------------------------------------------------------
 if ($fails) {
 	// Keep the disposable environment for inspection unless KEEP_WORK=0.

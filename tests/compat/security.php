@@ -472,6 +472,29 @@ get("$base/user.php", $body, $status, $cookieJar);
 check("remember-me cookie authenticates against the bcrypt row",
     $status === '200' && strpos((string) $body, 'name="pswd"') === false);
 
+// Task 4: the remaining password-write sites issue bcrypt too. The
+// lost-password flow only stores the new hash when the mail actually went
+// out, so both arms are asserted: mail delivered -> bcrypt row; mail
+// unavailable in the harness -> the row keeps its VALID md5 (a broken or
+// truncated hash must never land).
+$memberEmail = (string) row_scalar($db, "SELECT email FROM fanfiction_authors WHERE penname = 'OtherMember'");
+post("$base/user.php?action=lostpassword", array('submit' => 'Submit', 'email' => $memberEmail), $body, $status);
+if (strpos((string) $body, "A new password has been sent") !== false) {
+    check("lost-password reset issues bcrypt",
+        strncmp((string) row_scalar($db, "SELECT password FROM fanfiction_authors WHERE penname = 'OtherMember'"), '$2y$', 4) === 0);
+    // The mailed password is random; restore the known one for what follows.
+    $db->query("UPDATE fanfiction_authors SET password = '" . md5('memberpass123') . "' WHERE penname = 'OtherMember'");
+} else {
+    $lprow = (string) row_scalar($db, "SELECT password FROM fanfiction_authors WHERE penname = 'OtherMember'");
+    check("lost-password with mail unavailable keeps a valid hash",
+        $lprow === md5('memberpass123') || strncmp($lprow, '$2y$', 4) === 0);
+}
+
+// Admin-forced reset stores the hash before mailing, so it is deterministic.
+post("$base/admin.php?action=members", array('confirm' => 'yes', 'release' => '12', 'csrf' => $adminCsrf[1]), $body, $status, $adminJar);
+check("admin member reset issues bcrypt",
+    strncmp((string) row_scalar($db, "SELECT password FROM fanfiction_authors WHERE uid = 12"), '$2y$', 4) === 0);
+
 // Reset for later sections so md5-era assumptions elsewhere still hold:
 $db->query("UPDATE fanfiction_authors SET password = '" . md5('memberpass123') . "' WHERE penname = 'OtherMember'");
 

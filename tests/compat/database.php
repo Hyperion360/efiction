@@ -104,6 +104,26 @@ try {
             echo "ok: connect failure does not echo credentials\n";
         }
     }
+    // ef_ensure_password_column: widens password to varchar(255), is
+    // idempotent, and keeps the connection usable afterwards. The harness
+    // database has no fanfiction_authors table, so a minimal one with the
+    // legacy narrow column is created here.
+    if (!defined('TABLEPREFIX')) define('TABLEPREFIX', '');
+    dbquery("DROP TABLE IF EXISTS `fanfiction_authors`");
+    dbquery("CREATE TABLE `fanfiction_authors` (`uid` INT PRIMARY KEY AUTO_INCREMENT, `password` varchar(40) NOT NULL default '')");
+    $first = ef_ensure_password_column();
+    $res = mysqli_query($dbconnect, "SELECT CHARACTER_MAXIMUM_LENGTH AS l FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'fanfiction_authors' AND COLUMN_NAME = 'password'");
+    $len = $res ? (string) mysqli_fetch_assoc($res)['l'] : '';
+    $second = ef_ensure_password_column(); // must be a harmless no-op
+    if ($first === true && $len === '255' && $second === true) {
+        echo "ok: ef_ensure_password_column widens then is idempotent\n";
+    } else {
+        echo "FAIL: ef_ensure_password_column (first=" . var_export($first, true) . " len=$len second=" . var_export($second, true) . ")\n";
+        $fails++;
+    }
+    dbquery("DROP TABLE `fanfiction_authors`");
+
 } finally {
     dbquery("DROP TABLE IF EXISTS `$table`");
     dbclose();

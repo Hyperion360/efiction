@@ -64,7 +64,9 @@ if(isMEMBER) accessDenied( );
 				$charset = '23456789' . 'abcdefghijkmnpqrstuvwxyz' . 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 				$pass = '';
 				for($i = 0; $i < 10; $i++) $pass .= $charset[random_int(0, strlen($charset) - 1)];
-				$encryppass = md5($pass);
+				// Maintenance fork (3.5.7 port): bcrypt when the column allows,
+				// valid legacy md5 when the host denies the widening ALTER.
+				$encryppass = ef_ensure_password_column() ? ef_hash_password($pass) : md5($pass);
 				$subject = _NEWPWDSUB;
 				$mailtext = sprintf(_NEWPWDMSG, $pass);
 

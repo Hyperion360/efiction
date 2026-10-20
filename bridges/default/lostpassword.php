@@ -53,7 +53,8 @@ if($loggedin) accessDenied( );
 			mt_srand((double)microtime() * 1000000);
 			$charset = '23456789' . 'abcdefghijkmnpqrstuvwxyz' . 'ABCDEFGHJKLMNPQRSTUVWXYZ';		
 			$pass = random_string($charset, 10);
-			$encryppass = md5($pass);
+			// Maintenance fork (3.5.7 port): bcrypt or legacy md5.
+			$encryppass = ef_ensure_password_column() ? ef_hash_password($pass) : md5($pass);
 			$subject = _NEWPWDSUB;
 			$mailtext = sprintf(_NEWPWDMSG, $pass);
 

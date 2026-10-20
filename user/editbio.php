@@ -72,7 +72,8 @@ function random_string ($charset_string, $length)
 					if(!$pwdsetting) {
 						$charset = '23456789' . 'abcdefghijkmnpqrstuvwxyz' . 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 						$pass = random_string($charset, 10);
-						$encryppass = md5($pass);
+						// Maintenance fork (3.5.7 port): bcrypt or legacy md5.
+						$encryppass = ef_ensure_password_column() ? ef_hash_password($pass) : md5($pass);
 					}
 					else {
 						if($_POST['password'] != $_POST['password2']) {
@@ -83,7 +84,8 @@ function random_string ($charset_string, $length)
 							exit( );
 						}
 						$pass = $_POST['password2'];
-						$encryppass = md5($pass);
+						// Maintenance fork (3.5.7 port): bcrypt or legacy md5.
+						$encryppass = ef_ensure_password_column() ? ef_hash_password($pass) : md5($pass);
 					}
 					dbquery("INSERT INTO ".substr(_AUTHORTABLE, 0, strpos(_AUTHORTABLE, "as author"))." (penname, realname, bio, email, date, password) VALUES ('".escapestring($penname)."', '".escapestring(strip_tags($_POST['realname']))."', '".strip_tags(escapestring($_POST['bio']), $allowed_tags)."', '$email', now(), '$encryppass')");
 					$useruid = dbinsertid();
@@ -125,7 +127,8 @@ function random_string ($charset_string, $length)
 		else{
 			 if(($_POST['password']) && ($_POST['password2'])) {
 				if($_POST['password'] == $_POST['password2']) {
-					$encryppassword = md5($_POST['password']);
+					// Maintenance fork (3.5.7 port): bcrypt or legacy md5.
+					$encryppassword = ef_ensure_password_column() ? ef_hash_password($_POST['password']) : md5($_POST['password']);
 					dbquery("UPDATE "._AUTHORTABLE." SET password='$encryppassword' WHERE uid = '$uid'");
 				}
 				else $output .=  write_error(_PASSWORDTWICE);

@@ -25,9 +25,12 @@
 if(!defined("_CHARSET")) exit( );
 // Get session variables from cookie data if not logged in.
 // To bridge to another program replace (or add to) this information with the bridge to your other script.  See examples in the includes/bridges/ folder.
-if (!empty($_COOKIE[$sitekey."_useruid"])) {
-	$userdata = dbassoc(dbquery("SELECT ap.*, "._UIDFIELD." as uid, "._PENNAMEFIELD." as penname, "._EMAILFIELD." as email, "._PASSWORDFIELD." as password FROM "._AUTHORTABLE." LEFT JOIN ".$tableprefix."fanfiction_authorprefs as ap ON ap.uid = "._UIDFIELD." WHERE "._UIDFIELD." = '".$_COOKIE[$sitekey."_useruid"]."'"));
-	if($userdata && $userdata['level'] != -1 && $_COOKIE[$sitekey.'_salt'] == md5($userdata['email']+$userdata['password'])) {
+	if (!empty($_COOKIE[$sitekey."_useruid"])) {
+		$userdata = dbassoc(dbquery("SELECT ap.*, "._UIDFIELD." as uid, "._PENNAMEFIELD." as penname, "._EMAILFIELD." as email, "._PASSWORDFIELD." as password FROM "._AUTHORTABLE." LEFT JOIN ".$tableprefix."fanfiction_authorprefs as ap ON ap.uid = "._UIDFIELD." WHERE "._UIDFIELD." = '".$_COOKIE[$sitekey."_useruid"]."'"));
+		// Maintenance fork (3.5.7 port): upstream added email and hash with
+		// '+', which TypeErrors on PHP 8; the salt is their concatenation,
+		// matching includes/get_session_vars.php.
+		if($userdata && $userdata['level'] != -1 && $_COOKIE[$sitekey.'_salt'] == md5($userdata['email'].$userdata['password'])) {
 		define("USERUID", $userdata['uid']);
 		define("USERPENNAME", $userdata['penname']);
 		if(!isset($_SESSION[$sitekey."_skin"]) && !empty($userdata['userskin'])) $siteskin = $userdata['userskin'];
@@ -42,7 +45,7 @@ if (!empty($_COOKIE[$sitekey."_useruid"])) {
 }
 if(!empty($_SESSION[$sitekey."_useruid"]) && !defined("USERUID")) {
 	$userdata = dbassoc(dbquery("SELECT ap.*, "._UIDFIELD." as uid, "._PENNAMEFIELD." as penname, "._EMAILFIELD." as email, "._PASSWORDFIELD." as password FROM "._AUTHORTABLE." LEFT JOIN ".$tableprefix."fanfiction_authorprefs as ap ON ap.uid = "._UIDFIELD." WHERE "._UIDFIELD." = '".$_SESSION[$sitekey."_useruid"]."'"));
-	if($userdata && $userdata['level'] != -1 && $_SESSION[$sitekey.'_salt'] == md5($userdata['email']+$userdata['password'])) {
+	if($userdata && $userdata['level'] != -1 && $_SESSION[$sitekey.'_salt'] == md5($userdata['email'].$userdata['password'])) {
 		define("USERUID", $userdata['uid']);
 		define("USERPENNAME", $userdata['penname']);
 		if(!isset($_SESSION[$sitekey."_skin"]) && !empty($userdata['userskin'])) $siteskin = $userdata['userskin'];

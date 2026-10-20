@@ -456,6 +456,34 @@ function ef_param($name) {
 }
 }
 
+// Maintenance fork (3.5.7 port): password hashing helpers. Every hash write
+// goes through ef_hash_password, every verify through ef_verify_password, so
+// call sites never need to know which format a row stores. Guarded like the
+// CSRF helpers above so the installer inherits them.
+if(!function_exists("ef_hash_password")) {
+function ef_hash_password($plain) {
+	return password_hash($plain, PASSWORD_DEFAULT);
+}
+}
+if(!function_exists("ef_password_needs_upgrade")) {
+function ef_password_needs_upgrade($stored) {
+	return is_string($stored) && strlen($stored) === 32 && ctype_xdigit($stored);
+}
+}
+if(!function_exists("ef_verify_password")) {
+// Returns true for a matching bcrypt hash OR a matching legacy 32-hex MD5
+// (which callers then upgrade via ef_hash_password + ef_ensure_password_column).
+function ef_verify_password($plain, $stored) {
+	if(!is_string($stored) || $stored === "" || $stored === "0") return false;
+	if(ef_password_needs_upgrade($stored)) return hash_equals($stored, md5($plain));
+	return password_verify($plain, $stored);
+}
+}
+if(!function_exists("ef_session_salt")) {
+function ef_session_salt($email, $storedhash) {
+	return md5($email . $storedhash);
+}
+}
 // May be needed for sites that have bridged the authors table
 function check_prefs($uid) {
 	$test = dbquery("SELECT uid FROM ".TABLEPREFIX."fanfiction_authorprefs WHERE uid = '$uid'");

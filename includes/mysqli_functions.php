@@ -108,9 +108,11 @@ if(!function_exists("ef_ensure_password_column")) {
 				$oldmode = is_array($mode) && isset($mode['m']) ? $mode['m'] : "";
 				try {
 					$dbconnect->query("SET SESSION sql_mode = ''");
-					// Idempotent DDL: re-running CHANGE on an already-wide column succeeds.
+					// Idempotent DDL: re-running CHANGE on an already-wide
+					// column succeeds. The default stays '0', matching the
+					// upstream 3.5.x sentinel for passwordless rows.
 					$alt = $dbconnect->query("ALTER TABLE ".TABLEPREFIX."fanfiction_authors
-						CHANGE `password` `password` varchar(255) NOT NULL default ''");
+						CHANGE `password` `password` varchar(255) NOT NULL default '0'");
 					if($alt) $ok = true;
 				} catch(\mysqli_sql_exception $inner) {
 					// Denied ALTER even with the relaxed mode: stay in md5 mode.

@@ -111,6 +111,16 @@ db_hash() { # db_hash <mode> [tables...]
 		"$PHP_BIN" -r 'echo hash("sha256", stream_get_contents(STDIN));'
 }
 
+db_schema_hash() { # schema hash with the password column canonicalized:
+	# the 3.5.7 port widens it lazily at the first successful login, and a
+	# database widened by OFFICIAL 3.5.7 carries default '' where upstream
+	# 3.5.x used '0'; the replacement-idempotence comparison ignores exactly
+	# that column's definition (the whole line tail).
+	MYSQL_PWD="${EF_DB_ADMIN_PASSWORD}" "$DUMP_BIN" -h "$EF_DB_HOST" ${EF_DB_PORT:+-P "$EF_DB_PORT"} -u "$EF_DB_ADMIN_USER" \
+		--skip-comments --skip-extended-insert --no-data --order-by-primary "$DB_NAME" |
+		"$PHP_BIN" -r 'echo hash("sha256", preg_replace("/`password` varchar\(\d+\)[^\r\n]*/", "`password` varchar(N)", stream_get_contents(STDIN)));'
+}
+
 row_count() { # row_count <table>
 	mysql_q "SELECT COUNT(*) FROM \`$DB_NAME\`.\`$1\`" | tail -1
 }
@@ -482,6 +492,25 @@ if [ "$MODE" = "fresh" ]; then
 	status=$(http_get "/user.php?action=logout")
 	check_status "logout returns 200" 200 "$status"
 
+	# ---- future-official-release probe (3.5.8-style database) ----------------
+	# The fork keeps its files' version at 3.5.5, so a NEWER official database
+	# must simply run: unknown version row, unknown extra column, login works,
+	# update.php renders its informational message without downgrading.
+	mysql_q "UPDATE \`$DB_NAME\`.\`fanfiction_settings\` SET version = '3.5.8'" >/dev/null 2>&1 || \
+		mysql_q "ALTER TABLE \`$DB_NAME\`.\`fanfiction_settings\` ADD COLUMN version VARCHAR(20) DEFAULT '3.5.8'" >/dev/null 2>&1 || true
+	mysql_q "ALTER TABLE \`$DB_NAME\`.\`fanfiction_stories\` ADD COLUMN future_col varchar(64)" >/dev/null 2>&1 || true
+	status=$(http_get /index.php)
+	check_status "3.5.8-style database: home page loads (200)" 200 "$status"
+	check_no_php_errors "3.5.8-style database: home page has no PHP errors"
+	status=$(http_post "/user.php?action=login" \
+		"submit=submit&penname=SiteAdmin&password=correct%20horse%20battery%20staple%20123")
+	check_status "3.5.8-style database: login works" 200 "$status"
+	status=$(http_get /update.php)
+	check_contains "3.5.8-style database: update.php renders its message" "maintenance fork" "$BODY"
+	mysql_q "SELECT version FROM \`$DB_NAME\`.\`fanfiction_settings\`" | tail -1 | grep -q "3.5.8" \
+		&& check "3.5.8-style database: version row untouched by update.php" true \
+		|| check "3.5.8-style database: version row untouched by update.php" false
+
 	# Direct HTTP request must not expose config.php contents or the token.
 	# The status is asserted so a dead server or a curl failure cannot make
 	# these checks pass vacuously. An empty admin password makes the dbpass
@@ -539,7 +568,7 @@ else
 	}
 	copy_fork_over_fixture
 
-	SCHEMA_BEFORE=$(db_hash --no-data)
+	SCHEMA_BEFORE=$(db_schema_hash)
 	CONFIG_BEFORE=$("$PHP_BIN" -r 'echo hash_file("sha256", $argv[1]);' "$WEB/config.php")
 	FILES_BEFORE=$("$PHP_BIN" "$SCRIPT_DIR/hash-tree.php" "$WEB/stories")
 
@@ -551,6 +580,16 @@ else
 	# Session proof: the account page no longer shows the login form.
 	status=$(http_get /user.php)
 	check_not_contains "fixture admin session works" 'name="pswd"' "$BODY"
+
+	# 3.5.7 port: the fixture's md5 login must have widened the column and
+	# upgraded the row transparently (the whole point of the upgrade path).
+	UPG_LEN=$(mysql_q "SELECT CHARACTER_MAXIMUM_LENGTH FROM information_schema.columns WHERE table_schema = '$DB_NAME' AND table_name = 'fanfiction_authors' AND column_name = 'password'" | tail -1)
+	check "upgrade flow widens the password column at first login" [ "$UPG_LEN" = "255" ]
+	UPG_HASH=$(mysql_q "SELECT password FROM \`$DB_NAME\`.\`fanfiction_authors\` WHERE penname = 'FixtureAdmin'" | tail -1)
+	case "$UPG_HASH" in
+		'$2y$'*) check "upgrade flow upgrades FixtureAdmin to bcrypt" true ;;
+		*) check "upgrade flow upgrades FixtureAdmin to bcrypt (got: $UPG_HASH)" false ;;
+	esac
 
 	status=$(http_get /index.php)
 	check_status "upgraded home page loads" 200 "$status"
@@ -568,7 +607,7 @@ else
 	# A GET of update.php?confirm=yes is a separate no-write assertion.
 	status=$(http_get "/update.php?confirm=yes")
 	check_status "update.php GET confirm renders 200" 200 "$status"
-	check_contains "update.php reports no database update needed" "no database update" "$BODY"
+	check_contains "update.php reports its informational message" "runs on any official" "$BODY"
 
 	# Reader visits bump upstream's own story/chapter view counters, so the
 	# data reference for the replacement comparison is taken here, after the
@@ -579,7 +618,7 @@ else
 	# Second identical replacement (idempotence).
 	copy_fork_over_fixture
 
-	check "schema hash unchanged after replacement" [ "$SCHEMA_BEFORE" = "$(db_hash --no-data)" ]
+	check "schema hash unchanged after replacement (password column width canonicalized)" [ "$SCHEMA_BEFORE" = "$(db_schema_hash)" ]
 	check "preserved data hash unchanged after replacement" [ "$DATA_AFTER_SMOKE" = "$(db_hash --no-create-info fanfiction_authors fanfiction_stories fanfiction_chapters fanfiction_ratings)" ]
 	check "config hash unchanged after replacement" [ "$CONFIG_BEFORE" = "$("$PHP_BIN" -r 'echo hash_file("sha256", $argv[1]);' "$WEB/config.php")" ]
 	check "story files hash unchanged after replacement" [ "$FILES_BEFORE" = "$("$PHP_BIN" "$SCRIPT_DIR/hash-tree.php" "$WEB/stories")" ]

@@ -61,7 +61,7 @@ function sendemail($to_name,$to_email,$from_name,$from_email,$subject,$message,$
 	require_once(_BASEDIR."includes/phpmailer/PHPMailer-6.12.0/src/SMTP.php");
 	require_once(_BASEDIR."includes/phpmailer/PHPMailer-6.12.0/src/Exception.php");
 	$mail = new \PHPMailer\PHPMailer\PHPMailer(false);
-	$mail->setLanguage($language, _BASEDIR."includes/phpmailer/language/"); // falls back to English when a translation is missing
+	$mail->setLanguage($language, _BASEDIR."includes/phpmailer/PHPMailer-6.12.0/language/"); // canonical tree; English falls back inline
 
 	if(!$smtp_host) {
 		$mail->isMail( );

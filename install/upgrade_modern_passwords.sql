@@ -7,5 +7,5 @@
 -- which a CHANGE COLUMN rebuild re-validates. Run this with a session that
 -- permits them for the one statement:
 --   SET SESSION sql_mode = '';
---   ALTER TABLE `fanfiction_authors` CHANGE `password` `password` varchar(255) NOT NULL default '';
-ALTER TABLE `fanfiction_authors` CHANGE `password` `password` varchar(255) NOT NULL default '';
+--   ALTER TABLE `fanfiction_authors` CHANGE `password` `password` varchar(255) NOT NULL default '0';
+ALTER TABLE `fanfiction_authors` CHANGE `password` `password` varchar(255) NOT NULL default '0';

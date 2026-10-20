@@ -13,7 +13,7 @@ These components ship in the upstream tree under their own licenses. Their licen
 | Component | Files | Copyright | License |
 | --- | --- | --- | --- |
 | TemplatePower | includes/class.TemplatePower.inc.php | R.P.J. Velzeboer, 2001-2009 | GPL v2 or later (file header). The header also mentions a commercial "Certificate of Distribution" clause from the original author; the file is redistributed here under the GPL as upstream did. |
-| PHPMailer | includes/class.phpmailer.php, includes/class.smtp.php, includes/PHPMailerAutoload.php | Marcus Bointon, Jim Jagielski, Andy Prevost, Brent R. Matzelle, 2004-2014 | GNU Lesser General Public License (file headers). |
+| PHPMailer 6.12.0 | includes/phpmailer/ | Marcus Bointon, Jim Jagielski, Andy Prevost, Brent R. Matzelle, and the PHPMailer project, 2004-2025 | GNU Lesser General Public License 2.1 (includes/phpmailer/PHPMailer-6.12.0/LICENSE). Vendored from the official eFiction 3.5.7 release bundle, which this fork's password-modernization approach also follows (GPL v2 derivative). Replaces the legacy 5.x mailer, whose autoloader carried known CVE exposure. |
 | TinyMCE | tinymce/ | Ephox/Moxiecode | LGPL 2.1 (tinymce/lgpl.txt, tinymce/jscripts/tiny_mce/license.txt). |
 | Berrygood skin | skins/Berrygood/ | Kali, made-by-kali.com | CC Attribution Non-Commercial. The credit link must stay in the footer. License text: skins/Berrygood/cclicense.txt. |
 | E-zfiction skin | skins/E-zfiction/ | Kali, made-by-kali.com | CC Attribution Non-Commercial. The credit link must stay in the footer. License text: skins/E-zfiction/cclicense.txt. |

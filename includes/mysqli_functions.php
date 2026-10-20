@@ -38,6 +38,9 @@ function ef_ip_log_key($ip) {
 // first defines them; the bodies are identical.
 if(!function_exists("ef_hash_password")) {
 function ef_hash_password($plain) {
+	// A non-string plain value (crafted password[] POST fields) must never
+	// reach md5()/password_hash(), which TypeError on arrays.
+	if(!is_string($plain)) $plain = '';
 	return password_hash($plain, PASSWORD_DEFAULT);
 }
 }
@@ -48,6 +51,7 @@ function ef_password_needs_upgrade($stored) {
 }
 if(!function_exists("ef_verify_password")) {
 function ef_verify_password($plain, $stored) {
+	if(!is_string($plain)) $plain = '';
 	if(!is_string($stored) || $stored === "" || $stored === "0") return false;
 	if(ef_password_needs_upgrade($stored)) return hash_equals($stored, md5($plain));
 	return password_verify($plain, $stored);
@@ -58,11 +62,19 @@ function ef_session_salt($email, $storedhash) {
 	return md5($email . $storedhash);
 }
 }
+if(!function_exists("ef_native_authortable")) {
+// True only when _AUTHORTABLE is eFiction's own fanfiction_authors table
+// (bodies identical to the corefunctions copy; see the note above).
+function ef_native_authortable() {
+	if(!defined("_AUTHORTABLE") || !defined("TABLEPREFIX")) return false;
+	return strpos(_AUTHORTABLE, TABLEPREFIX."fanfiction_authors") === 0;
+}
+}
 
 if(!function_exists("ef_password_column_length")) {
 	// Returns the password column's current width, or false when it cannot
-	// be read (hidden INFORMATION_SCHEMA, early bootstrap). Shared by
-	// ef_ensure_password_column() and update.php's admin form.
+	// be read (hidden INFORMATION_SCHEMA, early bootstrap). Used by
+	// update.php's admin form.
 	function ef_password_column_length() {
 		global $dbconnect;
 		if(!$dbconnect) return false;

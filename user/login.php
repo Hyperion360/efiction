@@ -92,11 +92,18 @@
 		if(ef_verify_password($_POST['password'], $storedpassword)) {
 			// Maintenance fork (3.5.7 port): transparent md5-to-bcrypt upgrade
 			// on the first successful login; if the column cannot be widened
-			// the row keeps its valid md5 (never a truncated bcrypt).
-			if(ef_password_needs_upgrade($storedpassword) && ef_ensure_password_column()) {
+			// the row keeps its valid md5 (never a truncated bcrypt), and a
+			// foreign bridge's authors table is never touched (its own
+			// password column and hashing scheme stay upstream's).
+			if(ef_password_needs_upgrade($storedpassword) && ef_native_authortable() && ef_ensure_password_column()) {
 				$newhash = ef_hash_password($_POST['password']);
-				dbquery("UPDATE ".TABLEPREFIX."fanfiction_authors SET password = '".escapestring($newhash)."' WHERE uid = '".$passwd['uid']."'");
-				$storedpassword = $newhash;
+				// Compare-and-swap: a row that changed between the read above
+				// and this write (a concurrent password change) is never
+				// overwritten; the salt derives from whatever is actually
+				// stored after the attempt.
+				dbquery("UPDATE ".TABLEPREFIX."fanfiction_authors SET password = '".escapestring($newhash)."' WHERE uid = '".$passwd['uid']."' AND password = '".escapestring($storedpassword)."'");
+				$rerow = dbassoc(dbquery("SELECT "._PASSWORDFIELD." as password FROM "._AUTHORTABLE." WHERE "._UIDFIELD." = '".$passwd['uid']."'"));
+				if($rerow && !empty($rerow['password'])) $storedpassword = $rerow['password'];
 			}
 			$salt = ef_session_salt($passwd['email'], $storedpassword);
 			if(isset($_POST['cookiecheck'])) {

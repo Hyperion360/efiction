@@ -73,7 +73,7 @@ function random_string ($charset_string, $length)
 						$charset = '23456789' . 'abcdefghijkmnpqrstuvwxyz' . 'ABCDEFGHJKLMNPQRSTUVWXYZ';
 						$pass = random_string($charset, 10);
 						// Maintenance fork (3.5.7 port): bcrypt or legacy md5.
-						$encryppass = ef_ensure_password_column() ? ef_hash_password($pass) : md5($pass);
+						$encryppass = (ef_native_authortable() && ef_ensure_password_column()) ? ef_hash_password($pass) : md5($pass);
 					}
 					else {
 						if($_POST['password'] != $_POST['password2']) {
@@ -85,7 +85,7 @@ function random_string ($charset_string, $length)
 						}
 						$pass = $_POST['password2'];
 						// Maintenance fork (3.5.7 port): bcrypt or legacy md5.
-						$encryppass = ef_ensure_password_column() ? ef_hash_password($pass) : md5($pass);
+						$encryppass = (ef_native_authortable() && ef_ensure_password_column()) ? ef_hash_password($pass) : md5($pass);
 					}
 					dbquery("INSERT INTO ".substr(_AUTHORTABLE, 0, strpos(_AUTHORTABLE, "as author"))." (penname, realname, bio, email, date, password) VALUES ('".escapestring($penname)."', '".escapestring(strip_tags($_POST['realname']))."', '".strip_tags(escapestring($_POST['bio']), $allowed_tags)."', '$email', now(), '$encryppass')");
 					$useruid = dbinsertid();
@@ -128,7 +128,7 @@ function random_string ($charset_string, $length)
 			 if(($_POST['password']) && ($_POST['password2'])) {
 				if($_POST['password'] == $_POST['password2']) {
 					// Maintenance fork (3.5.7 port): bcrypt or legacy md5.
-					$encryppassword = ef_ensure_password_column() ? ef_hash_password($_POST['password']) : md5($_POST['password']);
+					$encryppassword = (ef_native_authortable() && ef_ensure_password_column()) ? ef_hash_password($_POST['password']) : md5($_POST['password']);
 					dbquery("UPDATE "._AUTHORTABLE." SET password='$encryppassword' WHERE uid = '$uid'");
 				}
 				else $output .=  write_error(_PASSWORDTWICE);
@@ -158,6 +158,21 @@ function random_string ($charset_string, $length)
 			}
 /* End dynamic fields */
 			dbquery("UPDATE "._AUTHORTABLE." SET realname='".descript(strip_tags(escapestring($_POST['realname'])), $allowed_tags)."', email='$email', bio='".descript(strip_tags(escapestring($_POST['bio']), $allowed_tags))."', image='".($imageupload && !empty($_POST['image']) ? escapestring($_POST['image']) : "")."' WHERE uid = '$uid'");
+			// Maintenance fork (3.5.7 port): an email change invalidates the
+			// session/remember-me salt (it derives from the email and the
+			// stored hash), so refresh it here or the member is logged out on
+			// the next page load. RAW email: get_session_vars recomputes from
+			// the unescaped row value (mirrors the default bridge's block).
+			$oldinfo = dbassoc(dbquery("SELECT "._EMAILFIELD." as email, "._PASSWORDFIELD." as password FROM "._AUTHORTABLE." WHERE "._UIDFIELD." = '$uid' LIMIT 1"));
+			if($oldinfo) {
+				$rawemail = isset($_POST['email']) && is_string($_POST['email']) ? $_POST['email'] : (string) $oldinfo['email'];
+				if($oldinfo['email'] != $rawemail) {
+					$storedhash = !empty($encryppassword) ? $encryppassword : $oldinfo['password'];
+					if(!isset($_SESSION)) session_start( );
+					$_SESSION[SITEKEY."_salt"] = ef_session_salt($rawemail, $storedhash);
+					if(isset($_COOKIE[SITEKEY."_salt"])) setcookie(SITEKEY."_salt", ef_session_salt($rawemail, $storedhash), array('expires' => time()+60*60*24*30, 'path' => "/", 'httponly' => true, 'samesite' => 'Lax'));
+				}
+			}
 			$output .= write_message(_ACTIONSUCCESSFUL."  ".(isset($_GET['uid']) ? _BACK2ADMIN : _BACK2ACCT));
 		}
 	}

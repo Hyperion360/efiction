@@ -16,6 +16,7 @@ rg -qi 'bcrypt' README.md docs/SECURITY.md
 ! rg -qi 'the fix needs the schema change this fork forbids' docs/SECURITY.md
 ! rg -qi 'Passwords are unsalted MD5' docs/SECURITY.md
 rg -qi 'PHPMailer 6' CREDITS.md
-rg -qi '3\.5\.7' README.md docs/COMPATIBILITY.md
+rg -qi '3\.5\.7' README.md INSTALL.md UPGRADE.md
 rg -q 'eFiction 3\.5\.5\+ maintenance fork' README.md
+test -f INSTALL.md && test -f UPGRADE.md
 echo "docs ok"

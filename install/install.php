@@ -167,7 +167,7 @@ function ef_deny($reason) {
 }
 
 function ef_locked_message() {
-	return write_error("The installer is locked. The owner secret file (".EF_INSTALL_TOKEN_FILE.") must exist in the private directory above the web root, as described in docs/COMPATIBILITY.md, before any installation step can run.");
+	return write_error("The installer is locked. The owner secret file (".EF_INSTALL_TOKEN_FILE.") must exist in the private directory above the web root, as described in INSTALL.md, before any installation step can run.");
 }
 
 function ef_state_read() {
@@ -424,7 +424,7 @@ if($ef_action === "recover") {
 		$output .= write_message("This archive is already configured. The installer is disabled and cannot change anything. Use the admin area of your site to make changes; never reinstall over an existing archive. The installer owner secret file was removed after installation, so recovery is not available; restore from your backup if this is not a completed install.");
 	} else {
 		$output .= ef_locked_message();
-		$output .= write_message("Create the file ".EF_INSTALL_TOKEN_FILE." in the private directory above your web root (the parent of ".ef_webroot()."), containing 64 random hex characters, then reload this page. See docs/COMPATIBILITY.md for the full procedure and an HTTP denial probe to confirm the location is not web readable.");
+		$output .= write_message("Create the file ".EF_INSTALL_TOKEN_FILE." in the private directory above your web root (the parent of ".ef_webroot()."), containing 64 random hex characters, then reload this page. See INSTALL.md for the full procedure and an HTTP denial probe to confirm the location is not web readable.");
 	}
 } else
 	switch($ef_step) {
@@ -1258,7 +1258,7 @@ else $output .= write_message(_SETTINGSTABLEAUTOFAIL."<br /><br /> <a href='inst
 					$config_sha256 = hash("sha256", $config);
 					$tmp = ef_config_path() . ".tmp-" . bin2hex(random_bytes(4));
 					if(!ef_state_write($config_sha256)) {
-						$output .= write_error("Could not write the install state marker in the private directory above the web root. config.php was not created. Check the directory permissions; see docs/COMPATIBILITY.md.");
+						$output .= write_error("Could not write the install state marker in the private directory above the web root. config.php was not created. Check the directory permissions; see INSTALL.md.");
 					} else if(file_put_contents($tmp, $config) === false || !rename($tmp, ef_config_path())) {
 						@unlink($tmp);
 						$output .= write_error(_ERROR_CONFIGWRITE);

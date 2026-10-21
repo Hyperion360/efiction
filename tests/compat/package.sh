@@ -48,7 +48,7 @@ if unzip -l "$OUT" | grep -Eq 'efiction-install-(token|state)|export-token|efict
 fi
 
 # Gate: upstream notices must still be present.
-for f in LICENSE CREDITS.md README.txt docs/PROVENANCE.md tinymce/lgpl.txt skins/Berrygood/cclicense.txt skins/E-zfiction/cclicense.txt; do
+for f in LICENSE CREDITS.md README.txt INSTALL.md UPGRADE.md docs/PROVENANCE.md docs/COMPATIBILITY.md docs/SECURITY.md tinymce/lgpl.txt skins/Berrygood/cclicense.txt skins/E-zfiction/cclicense.txt; do
 	unzip -l "$OUT" | grep -q " $f\$" || { echo "FAIL: release ZIP is missing $f" >&2; exit 1; }
 done
 

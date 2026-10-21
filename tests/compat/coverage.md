@@ -70,4 +70,4 @@ Every changed behavioral branch of the maintenance fork, mapped to the named cas
 
 ## New files added by this fork
 
-`LICENSE`, `CREDITS.md`, `docs/PROVENANCE.md`, `docs/COMPATIBILITY.md`, `CHANGES-MAINTENANCE.md`, `README.md`, `.gitignore`, `.htaccess`, `tests/compat/*`, `tests/fixtures/*`, `.github/workflows/compat.yml`. All runtime files retain their upstream license headers.
+`LICENSE`, `CREDITS.md`, `docs/PROVENANCE.md`, `docs/COMPATIBILITY.md`, `INSTALL.md`, `UPGRADE.md`, `CHANGES-MAINTENANCE.md`, `README.md`, `.gitignore`, `.htaccess`, `tests/compat/*`, `tests/fixtures/*`, `.github/workflows/compat.yml`. All runtime files retain their upstream license headers.

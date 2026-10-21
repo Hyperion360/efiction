@@ -22,13 +22,13 @@ Each later PHP minor needs revalidation before it is claimed. Testing status: ve
 
 ## Install
 
-Upload the release ZIP, extract it in your web root, place a one-time 64 hex character owner secret in a file beside the web root, and follow the installer in the browser. The secret requirement, the denial probe for that location, and the recovery rules are documented step by step in [docs/COMPATIBILITY.md](docs/COMPATIBILITY.md). The installer writes `config.php` itself and deletes the secret when the install completes.
+Upload the release ZIP, extract it in your web root, place a one-time 64 hex character owner secret in a file beside the web root, and follow the installer in the browser. The secret requirement, the denial probe for that location, and the recovery rules are documented step by step in [INSTALL.md](INSTALL.md). The installer writes `config.php` itself and deletes the secret when the install completes.
 
 ## Upgrade from eFiction 3.5.5 or official 3.5.7
 
 Back up your files and database, then upload the release ZIP over the existing files, keeping `config.php` and your uploaded `stories/` directory. The fork is file compatible with 3.5.5 and with official 3.5.7 databases: existing bcrypt hashes from 3.5.7 verify unchanged, and legacy MD5 hashes upgrade to bcrypt transparently at each member's next successful login (members log in once more after the upgrade because the session salt is derived from the stored hash).
 
-The only schema step this fork ever needs is widening `fanfiction_authors.password` to `varchar(255)` so bcrypt hashes fit. It is applied three ways, all idempotent: automatically at the first password write (registration, reset, or login upgrade); up front by the main administrator visiting `update.php` directly and clicking the tokened button; or scripted via `install/upgrade_modern_passwords.sql`. On a host that denies the `ALTER`, the fork stays in working MD5 mode instead of ever storing a truncated hash. Archives older than 3.5.5 must reach a verified eFiction 3.5.5 copy first (upstream stable source: [eFiction/v3_stable](https://github.com/eFiction/v3_stable)).
+The only schema step this fork ever needs is widening `fanfiction_authors.password` to `varchar(255)` so bcrypt hashes fit. It is applied three ways, all idempotent: automatically at the first password write (registration, reset, or login upgrade); up front by the main administrator visiting `update.php` directly and clicking the tokened button; or scripted via `install/upgrade_modern_passwords.sql`. On a host that denies the `ALTER`, the fork stays in working MD5 mode instead of ever storing a truncated hash. Archives older than 3.5.5 must reach a verified eFiction 3.5.5 copy first (upstream stable source: [eFiction/v3_stable](https://github.com/eFiction/v3_stable)). The complete upgrade guide, including bridged sites and the pre-3.5.5 chain, is [UPGRADE.md](UPGRADE.md).
 
 ## Migrating to Kiption
 

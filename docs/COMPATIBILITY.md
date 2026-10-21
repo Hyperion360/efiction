@@ -1,6 +1,11 @@
 # Compatibility and deployment
 
-This document describes what the maintenance fork is tested on, how to install it on an ordinary shared host with only a file manager and a browser, and how to upgrade a 3.5.5 archive. Last updated: 2026-10-14.
+This document is the complete install and upgrade guide: what the maintenance fork is tested on, how to install it on an ordinary shared host with only a file manager and a browser, how to upgrade a 3.5.5 or official 3.5.7 archive, and what to do when a step misbehaves. Last updated: 2026-10-20.
+
+## Choosing a release
+
+- **v3.5.5-maint.2** (current) for new installs and every upgrade: bcrypt passwords with transparent MD5 upgrade, official 3.5.7-database support, PHP 8.3-8.5. Download it from the [releases page](https://github.com/Hyperion360/efiction/releases).
+- **v3.5.5-maint.1** only if you deliberately want to stay on legacy MD5 passwords; upgrading from it to maint.2 later keeps every login.
 
 ## Tested hosts
 
@@ -8,7 +13,7 @@ The fork is tested, not merely built, on each row of this matrix. Each later PHP
 
 | Component | Tested |
 | --- | --- |
-| PHP | 8.3.35 and 8.4.8 (CLI server and Apache 2.4 with mod_php in the release gate) |
+| PHP | 8.3.35 and 8.4.8 (CLI server and Apache 2.4 with mod_php in the release gate); 8.5 exercised by CI |
 | Database | MySQL 8.0.46 and MariaDB 10.6.23 (local matrix), MariaDB 10.11 (Apache release gate and CI service) |
 | Web server | Apache 2.4 with `.htaccess` enabled and mod_rewrite (release gate); the PHP built-in server is used only as a fast supplemental smoke |
 | PHP extensions | mysqli. mbstring is not required. No cron, Node, Composer, shell access, or root access is needed to install |
@@ -27,6 +32,29 @@ The installer stores chapter text either in the database or in files under a `st
 
 `config.php` holds database credentials. The shipped `.htaccess` denies direct web requests for it under Apache. It must never be committed, copied into a release, or sent to anyone.
 
+### Post-install checklist
+
+1. Request `https://your-site.example/install/` and confirm it reports the installer is disabled; then delete the `install/` directory if you have not already.
+2. Confirm `efiction-install-token.txt` is gone from the directory above the web root (the installer deletes it; verify).
+3. Log in and change the admin password to one only you know (it is stored bcrypt-hashed from the moment you set it).
+4. Leave `config.php` at its installed permissions (0640/0644); owner-writable is enough, and nothing needs to be world writable. The `stories/` directory is created 0777 for shared-host compatibility; on hosts where PHP runs as your own user, 0755 is safe and can be tightened after uploads work.
+5. Take a first backup (files plus a database dump from your control panel) before you start importing stories.
+6. Reader-facing documentation for skins, blocks, and the admin manual ships inside the ZIP's `docs/` folder (`adminmanual.htm`, `creating_skins.htm`, `creating_blocks.htm`, `convertingskins.htm`) — upstream's original guides, kept unmodified.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+| --- | --- |
+| Installer says the site is "already configured" | A completed install exists. The installer is inert and safe to leave; to reinstall deliberately, delete `config.php` first (your database content is not touched by deleting the file). |
+| Installer refuses to run with no secret prompt | `efiction-install-token.txt` is missing, misnamed, or not in the directory **above** the web root. The file must contain 64 hex characters, and `https://your-site.example/../efiction-install-token.txt` must deny or miss. On hosts that serve the docroot parent, ask the host to serve only the docroot. |
+| Blank page or HTTP 500 anywhere | Almost always PHP below 8.3. Check the PHP version your host actually assigns to the directory (control panel or a `phpversion()` probe); switch it to 8.3, 8.4, or 8.5. Fatals from a broken upload (partially extracted ZIP) also present this way; re-extract. |
+| "Call to undefined function mysqli_connect" or similar | The mysqli PHP extension is not enabled for the directory. Enable it in the host's PHP settings; mbstring is not required. |
+| An installer step re-renders with a database error | The database name, user, or password is wrong, or the user lacks rights on the database. The form re-renders with the error text instead of failing silently; correct the values and resubmit. |
+| The widen button on `update.php` reports the host refused | The database user lacks ALTER privilege, or MySQL rejected the rebuild. The fork stays in working MD5 mode — no hash was written. Apply `install/upgrade_modern_passwords.sql` by hand (with `SET SESSION sql_mode = ''` first on MySQL 8+/9.x), or ask the host to widen `fanfiction_authors.password` to `varchar(255)`. |
+| Every member reports one extra login after an upgrade | Expected and one-time: the session salt derives from the stored hash, so the first login after the files change re-establishes it. Nothing is broken. |
+| Admin actions return 403 | The POST lacked the per-session token (a bookmarked form page, or a stale tab). Reload the admin page and submit again. |
+| The whole site shows the maintenance page | Maintenance mode is on in the site settings; an administrator can turn it off in the admin area. Unlike old 3.x upgrades, swapping in this fork's files never puts the site into maintenance by itself. |
+
 ## Partial install recovery
 
 If an install stops between steps, the installer offers one recovery action on step 1. It requires the owner secret and only proceeds when a state marker written next to the secret matches the SHA-256 of the existing `config.php` and the database holds no admin, story, chapter, message, news, or review rows. Recovery saves a file and database backup into a private `efiction-install-backup-*` directory, removes `config.php`, and lets you start over at step 1.
@@ -41,9 +69,11 @@ Source databases: **eFiction 3.5.5 (MD5)** and **official 3.5.7 (bcrypt or mixed
 2. Upload the release ZIP contents over the existing files with your file manager, preserving `config.php` and your uploaded `stories/` directory. Both are excluded from the release ZIP so an overwrite cannot clobber them.
 3. Reload your site. Reader and admin pages work as before. Existing bcrypt rows verify unchanged; legacy MD5 rows upgrade to bcrypt at each member's next successful login (every member logs in once more, because the session salt derives from the stored hash).
 
+Upgrading from **v3.5.5-maint.1** is the same three steps — no extra preparation; passwords convert at the next logins. **Bridged sites** (a foreign authors table via SMF, php-fusion, eFic2eFic, or similar): the bcrypt upgrade applies only to eFiction's own `fanfiction_authors` table; your bridge's password column and hashing scheme are never written by this fork.
+
 PHP floor: 8.3 (8.3/8.4/8.5 tested, matching the official 3.5.7 line's ceiling). Users on hosts that cannot run modern PHP belong on [Kiption](https://kiption.com): individual writers post free, and archive owners get hosted archives with eFiction migration on paid tiers at [Kiption Cloud](https://kiption.com/cloud). Old-PHP support is out of scope for this fork permanently.
 
-Archives older than 3.5.5 must first reach a verified eFiction 3.5.5 copy (the upstream stable source: https://github.com/eFiction/v3_stable). The fork does not provide in-place upgrades from older versions.
+Archives older than 3.5.5 must first reach a verified eFiction 3.5.5 copy, then take this fork's upgrade flow. Bring them up the chain (1.1 → 2.0 → 3.x → 3.5.5) with the upstream stable tree's own upgraders: https://github.com/eFiction/v3_stable. This fork's bundled `install/upgrade11.php` and `install/upgrade20.php` are the upstream originals, disabled on purpose: they mutate the database without authentication, so the fork never runs them.
 
 ## Custom pages with embedded PHP
 

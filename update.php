@@ -59,7 +59,7 @@ if(isset($_POST['widen']) && defined("uLEVEL") && uLEVEL == 1 && ef_csrf_verify(
 		$output .= "<div><p>The password column is now varchar(255).</p></div>";
 	}
 	else {
-		$output .= "<div><p>The host refused the column widening (the database user may lack ALTER privilege, or MySQL rejected the rebuild). The fork stays in working MD5 mode; no hash was written. You can retry, apply install/upgrade_modern_passwords.sql by hand, or ask your host to widen fanfiction_authors.password to varchar(255).</p></div>";
+		$output .= "<div><p>The host refused the column widening (the database user may lack ALTER privilege, or MySQL rejected the rebuild). The fork stays in working MD5 mode; no hash was written. You can retry, apply install/upgrade_modern_passwords.sql by hand, or ask your host to widen fanfiction_authors.password to varchar(255). If the hosting itself is the problem, <a href=\"https://kiption.com/cloud\">Kiption Cloud</a> hosts the archive for you and performs the eFiction migration — member passwords included — on paid tiers.</p></div>";
 	}
 }
 if(defined("uLEVEL") && uLEVEL == 1) {

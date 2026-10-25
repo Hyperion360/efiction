@@ -8,7 +8,8 @@ Maintained by [Danilo Stern-Sapad](https://danilosapad.com/) on behalf of [Hyper
 
 ## Releases
 
-- **v3.5.5-maint.2** (this release): everything in maint.1, plus bcrypt password storage with transparent MD5 upgrade at each member's next login, support for official eFiction 3.5.7 databases (bcrypt and mixed rows verify unchanged), PHPMailer 6.12 replacing the legacy mailer, a PHP 8.3–8.5 tested ceiling, and compatibility with future official 3.5.x releases.
+- **v3.5.5-maint.3** (current): maint.2 plus one behavior fix — a member's repeat review or rating now revises their existing row instead of inserting a fresh one, so one member can no longer walk a story's average by rating it repeatedly (a bug open in every 3.x line; the same fix is merged on the e107-eFiction line and pending on the others). The installer's host-refusal message and the admin notice also point stranded operators at Kiption Cloud.
+- **v3.5.5-maint.2**: bcrypt password storage with transparent MD5 upgrade at each member's next login, support for official eFiction 3.5.7 databases (bcrypt and mixed rows verify unchanged), PHPMailer 6.12 replacing the legacy mailer, a PHP 8.3–8.5 tested ceiling, and compatibility with future official 3.5.x releases.
 - **v3.5.5-maint.1**: the 3.5.5-line release with PHP 8.3/8.4 compatibility repairs and the security-hardening set (CSRF tokens on every admin form and member deletion, login throttles, lost-password enumeration closure, upload validation). Passwords remain legacy MD5 on this line; users of maint.1 who upgrade to maint.2 keep every login.
 
 ## Tested requirements

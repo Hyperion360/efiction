@@ -338,6 +338,26 @@ post("$base/reviews.php?action=edit&reviewid=$reviewid", array(
 ), $body, $status, $memberJar);
 check("member cannot rewrite another member's review", row_scalar($db, "SELECT review FROM fanfiction_reviews WHERE reviewid = $reviewid") === 'Original review text.');
 
+// Ratings-abuse guard: a logged-in member's repeat submission must revise
+// their existing review row, not insert a fresh one and walk the average
+// (upstream efiction3-mod issue #8, unfixed in every 3.x line until now).
+// chapid-agnostic on purpose: reviews.php resolves the story's first
+// chapter when none is posted, and the fixture has exactly one.
+$db->query("DELETE FROM fanfiction_reviews WHERE uid = 12 AND type = 'ST' AND item = 1");
+post("$base/reviews.php?action=add&item=1&type=ST", array(
+	'submit' => 'Submit', 'review' => 'First rating from the member.', 'rating' => '2',
+), $body, $status, $memberJar);
+check("member review stored",
+    (int) row_scalar($db, "SELECT COUNT(*) FROM fanfiction_reviews WHERE uid = 12 AND type = 'ST' AND item = 1") === 1);
+post("$base/reviews.php?action=add&item=1&type=ST", array(
+	'submit' => 'Submit', 'review' => 'Revised rating from the member.', 'rating' => '5',
+), $body, $status, $memberJar);
+check("repeat rating revises the existing row instead of inserting",
+    (int) row_scalar($db, "SELECT COUNT(*) FROM fanfiction_reviews WHERE uid = 12 AND type = 'ST' AND item = 1") === 1
+    && (string) row_scalar($db, "SELECT rating FROM fanfiction_reviews WHERE uid = 12 AND type = 'ST' AND item = 1") === '5'
+    && (string) row_scalar($db, "SELECT review FROM fanfiction_reviews WHERE uid = 12 AND type = 'ST' AND item = 1") === 'Revised rating from the member.');
+$db->query("DELETE FROM fanfiction_reviews WHERE uid = 12 AND type = 'ST' AND item = 1");
+
 // Author response storage: upstream appended the response without
 // strip_tags, so a script tag reached every visitor of the review page.
 // The response form is rendered to the review owner on the revres panel.

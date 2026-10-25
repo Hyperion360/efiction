@@ -147,7 +147,24 @@ else if($action == "edit" || $action == "add") {
 			}
 			else if($type == "ST") {
 				if(isset($_POST['chapid']) && isNumber($_POST['chapid'])) $chapid = $_POST['chapid'];
-				dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_reviews (item, type, reviewer, review, rating, date, uid, chapid) VALUES ('$item', 'ST', '$reviewer', '$review', '$rating', now(), '".(USERUID && isNumber(USERUID) ? USERUID : 0)."', '$chapid')");
+				if(!isset($chapid)) $chapid = 0;
+				// Maintenance fork: ratings-abuse guard (upstream issue #8 on
+				// efiction3-mod, unfixed in every 3.x line) - a logged-in
+				// member gets one rating per story chapter; a repeat
+				// submission revises their existing review row instead of
+				// inserting a fresh one and walking the average. Anonymous
+				// submissions keep the old behavior (no identity to key on).
+				$alreadyrated = 0;
+				if(USERUID && isNumber(USERUID)) {
+					$dupe = dbquery("SELECT reviewid FROM ".TABLEPREFIX."fanfiction_reviews WHERE item = '$item' AND type = 'ST' AND chapid = '$chapid' AND uid = '".USERUID."' LIMIT 1");
+					list($alreadyrated) = dbrow($dupe);
+				}
+				if($alreadyrated) {
+					dbquery("UPDATE ".TABLEPREFIX."fanfiction_reviews SET review = '$review', rating = '$rating', date = now() WHERE reviewid = '$alreadyrated' LIMIT 1");
+				}
+				else {
+					dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_reviews (item, type, reviewer, review, rating, date, uid, chapid) VALUES ('$item', 'ST', '$reviewer', '$review', '$rating', now(), '".(USERUID && isNumber(USERUID) ? USERUID : 0)."', '$chapid')");
+				}
 				$count =  dbquery("SELECT AVG(rating) as totalcount FROM ".TABLEPREFIX."fanfiction_reviews WHERE item = '$item' AND type = 'ST' AND rating != '-1'");
 				list($totalcount) = dbrow($count);
 				if($totalcount) $update = dbquery("UPDATE ".TABLEPREFIX."fanfiction_stories SET rating = '".round($totalcount)."' WHERE sid = '$item'");
@@ -178,7 +195,18 @@ else if($action == "edit" || $action == "add") {
 				}
 			}
 			else if($type == "SE"){
-				dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_reviews (item, type, reviewer, review, rating, date, uid) VALUES ('$item', 'SE', '$reviewer', '$review', '$rating', now(), '".(USERUID && isNumber(USERUID) ? USERUID : 0)."')");
+				// Same ratings-abuse guard for series reviews (see the ST path).
+				$alreadyrated = 0;
+				if(USERUID && isNumber(USERUID)) {
+					$dupe = dbquery("SELECT reviewid FROM ".TABLEPREFIX."fanfiction_reviews WHERE item = '$item' AND type = 'SE' AND uid = '".USERUID."' LIMIT 1");
+					list($alreadyrated) = dbrow($dupe);
+				}
+				if($alreadyrated) {
+					dbquery("UPDATE ".TABLEPREFIX."fanfiction_reviews SET review = '$review', rating = '$rating', date = now() WHERE reviewid = '$alreadyrated' LIMIT 1");
+				}
+				else {
+					dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_reviews (item, type, reviewer, review, rating, date, uid) VALUES ('$item', 'SE', '$reviewer', '$review', '$rating', now(), '".(USERUID && isNumber(USERUID) ? USERUID : 0)."')");
+				}
 				$thisseries = $item;
 				seriesreview($item);
 				$uidquery = dbquery("SELECT uid as uid,title FROM ".TABLEPREFIX."fanfiction_series WHERE seriesid = '$item'");

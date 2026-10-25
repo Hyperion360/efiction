@@ -103,8 +103,16 @@ function descript($text) {
 	// the whole tag (review finding, verified on stored story HTML paths).
 	$text = preg_replace('#(<[^>]+[\\"\'\s])(on[a-z]+\s*=|xmlns)[^>]*>#iU', ">", $text);
 
+	// Maintenance fork (3.5.78 port): official eFiction 3.5.78 rebuilt every
+	// tag from its attributes, because scheme filters alone miss URLs the
+	// browser reassembles: control characters inside the scheme (jav\tascript:),
+	// entity-encoded schemes, and data: URLs carrying markup. Their rebuilder
+	// is ported whole (GPL v2, same lineage) with credit; the anchored on*
+	// line above stays as defense in depth.
+	$text = preg_replace_callback('#<(/?)([a-zA-Z][a-zA-Z0-9]*)((?:[^>"\']|"[^"]*"|\'[^\']*\')*)>#', 'ef_clean_tag', $text);
+
 	// remove javascript: and vbscript: protocol
-	
+
 	$text = preg_replace('#([a-z]*)=([\`\'\"]*)script:#iU', '$1=$2nojscript...', $text);
 	$text = preg_replace('#([a-z]*)=([\`\'\"]*)javascript:#iU', '$1=$2nojavascript...', $text);
 	$text = preg_replace('#([a-z]*)=([\'\"]*)vbscript:#iU', '$1=$2novbscript...', $text);
@@ -113,6 +121,33 @@ function descript($text) {
 	$text = preg_replace('#(<[^>]+)style=([\`\'\"]*).*expression\([^>]*>#iU', "$1>", $text);
 	$text = preg_replace('#(<[^>]+)style=([\`\'\"]*).*behaviour\([^>]*>#iU', "$1>", $text);
 	return $text;
+}
+
+// Rebuild one HTML tag keeping only safe attributes (descript() helper,
+// ported from official eFiction 3.5.78). Drops event-handler and
+// namespace attributes at the name level, decodes entities and control
+// characters out of values before the scheme check, allows only image
+// data: URLs, and re-emits values HTML-escaped in double quotes.
+if(!function_exists("ef_clean_tag")) {
+function ef_clean_tag($m) {
+	if($m[1] === "/") return "</".$m[2].">";
+	$out = "<".$m[2];
+	$selfclose = preg_match('#/\s*$#', $m[3]);
+	preg_match_all('#([^\s"\'/=<>]+)(?:\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+))?#', $m[3], $attrs, PREG_SET_ORDER);
+	foreach($attrs as $a) {
+		$name = strtolower($a[1]);
+		if(!preg_match('#^[a-z][a-z0-9_:.-]*$#', $name) || strpos($name, "on") === 0 || $name == "xmlns" || $name == "formaction" || $name == "srcdoc") continue;
+		if(!isset($a[2])) { $out .= " ".$name; continue; }
+		$v = $a[2];
+		if(strlen($v) > 1 && ($v[0] == '"' || $v[0] == "'") && substr($v, -1) == $v[0]) $v = substr($v, 1, -1);
+		$plain = strtolower(preg_replace('#[\x00-\x20]+#', '', html_entity_decode($v, ENT_QUOTES, 'UTF-8')));
+		$plain = preg_replace('#&\#?[a-z0-9]+;?#', '', $plain);
+		if(preg_match('#^(java|vb|live)script:#', $plain) || (strpos($plain, "data:") === 0 && !preg_match('#^data:image/(png|gif|jpe?g|webp);#', $plain))) continue;
+		if($name == "style" && preg_match('#expression\(|behaviou?r\s*:|javascript:|url\s*\(\s*[\'"]?\s*(java|vb)script#i', $plain)) continue;
+		$out .= " ".$name.'="'.str_replace(array('"', '<', '>'), array('&quot;', '&lt;', '&gt;'), $v).'"';
+	}
+	return $out.($selfclose ? " />" : ">");
+}
 }
 
 // Call this function when the user tries to do something they shouldn't have access to.

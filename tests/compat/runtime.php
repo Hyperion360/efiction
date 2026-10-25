@@ -42,6 +42,21 @@ check('multibyte legacy byte behavior unchanged', $masked === $expected);
 // (including onerror/onfocus/onclick in any case) while PRESERVING tags
 // whose attribute values merely start with an on-word. The unanchored
 // pattern collapsed <a title="only once"> entirely (review finding).
+// 3.5.78 port: the vectors their attribute rebuilder closes that plain
+// scheme filters miss - control characters inside the scheme, data: URLs
+// carrying markup - plus the safe cases that must keep working.
+check('descript blocks control-character-obfuscated script urls',
+    strpos(descript('<a href="jav&#9;ascript:alert(1)">x</a>'), 'ascript:') === false
+        && strpos(descript("<a href=\"jav\tascript:alert(1)\">x</a>"), 'ascript:') === false);
+check('descript blocks data: urls carrying markup, keeps safe image data',
+    strpos(descript('<a href="data:text/html,<script>alert(1)</script>">x</a>'), 'data:text/html') === false
+        && strpos(descript('<img src="data:image/png;base64,iVBOR">'), 'data:image/png') !== false);
+check('descript blocks entity-encoded schemes and srcdoc',
+    strpos(descript('<a href="&#106;avascript:alert(1)">x</a>'), 'avascript:') === false
+        && strpos(descript('<iframe srcdoc="<script>alert(1)</script>">'), 'srcdoc') === false);
+check('descript keeps ordinary links and text untouched',
+    strpos(descript('<a href="https://example.com/page">ok</a> and plain words'), 'https://example.com/page') !== false);
+
 check('descript strips onerror handler', strpos(descript('<img src=x onerror=alert(1)>'), 'onerror') === false);
 check('descript strips spaced onclick', strpos(descript('<a ONCLICK ="x()">y</a>'), 'ONCLICK') === false);
 check('descript strips xmlns', strpos(descript('<span xmlns="http://x">z</span>'), 'xmlns') === false);

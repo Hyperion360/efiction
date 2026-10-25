@@ -17,7 +17,7 @@ jobs:
         with: {persist-credentials: false}
       - name: Compare upstream feed
         id: feed
-        env: {TESTED_UPSTREAM: "3.5.7"}
+        env: {TESTED_UPSTREAM: "3.5.78"}
         run: |
           latest=$(curl -fsS --max-time 20 https://update.efiction.org/v3/3.5/latest.json | jq -r .version)
           echo "latest=$latest"

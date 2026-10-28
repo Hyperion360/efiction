@@ -128,6 +128,14 @@ check('bridge get_session_vars gates the uid cookie with isNumber',
 $bridgeLost = file_get_contents($root . '/bridges/default/lostpassword.php');
 check('bridge lost-password escapes the email before SQL',
     strpos($bridgeLost, "escapestring(descript(\$_POST['email']))") !== false);
+// Item 63 (upstream efiction3-mod issue #11): the series rating UPDATE
+// must gate on the rating aggregate, not the text-review count, or
+// rate-only submissions never count toward the series rating.
+$seriesreviewsSrc = file_get_contents($root . '/includes/seriesreviews.php');
+check('series rating update gates on the rating aggregate',
+    strpos($seriesreviewsSrc, "if(\$totalreviews !== null)") !== false
+        && strpos($seriesreviewsSrc, "if(\$totalcount) \$update") === false);
+
 check('bridge lost-password never seeds mt_srand',
     strpos($bridgeLost, 'mt_srand') === false);
 

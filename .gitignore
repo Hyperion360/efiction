@@ -1,4 +1,12 @@
-.gstack/
-dist/
-qa-full-reports/
+# Private working material — local only, never committed (see AGENTS.md)
 docs/superpowers/
+research/
+qa-full-reports/
+daily-qa-reports/
+TODOS.md
+handoff-*.md
+AGENTS.local.md
+.gstack/
+
+# Build output
+dist/

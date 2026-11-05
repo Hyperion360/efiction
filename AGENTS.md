@@ -32,3 +32,9 @@ quiet working-tree delete.
 - GitHub is canonical. SourceForge (`sf` remote) is a mirror kept current by
   `.github/workflows/sourceforge-mirror.yml`; pushes to it use explicit refs
   (`main --tags`), never `--mirror`.
+- SourceForge refuses non-fast-forward branch pushes. After any history
+  rewrite: push a temp branch with the rewritten history, flip
+  `/admin/code/set_default_branch_name` to it (the bare admin forms only
+  accept posts that include the `_csrf_token` cookie value as a form field),
+  delete and re-push `main`, then flip the default back and delete the temp
+  branch.

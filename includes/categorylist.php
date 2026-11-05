@@ -10,12 +10,15 @@ include("../includes/queries.php");
 
 $catid = isset($_GET['catid']) && preg_match("/^[0-9]+$/", $_GET['catid']) ? $_GET['catid'] : -1;
 $cats = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_categories WHERE parentcatid = '$catid' OR catid = '$catid' ORDER BY leveldown, displayorder");
-echo "var el = '".$_GET['element']."';\n";
+// Maintenance fork (3.5.84 port): the element name is reflected into
+// JavaScript, so it must be a plain identifier and escaped.
+if(!isset($_GET['element']) || !preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*$/', $_GET['element'])) $_GET['element'] = '';
+echo "var el = '".addslashes($_GET['element'])."';\n";
 $x = 0;
 $find = array ('"', chr(150), chr(147), chr(148), chr(146));
 $replace = array ('\"', "-", "\"", "\"", "'");
 while($category = dbassoc($cats)) {
-	echo "categories[$x] = new category(".$category['parentcatid'].", ".$category['catid'].", \"".urlencode(str_replace($find, $replace, stripslashes($category['category'])))."\", ".$category['locked'].", ".$category['displayorder'].");\r\n";
+	echo "categories[$x] = new category(".$category['parentcatid'].", ".$category['catid'].", \"".urlencode(str_replace($find, $replace, stripslashes((string) $category['category'])))."\", ".$category['locked'].", ".$category['displayorder'].");\r\n";
 	$x++;
 }
 ?>

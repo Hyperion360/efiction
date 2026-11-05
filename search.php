@@ -43,52 +43,63 @@ include("includes/pagesetup.php");
 
 
 $searchtype = (isset($_REQUEST['searchtype']) ? $_REQUEST['searchtype'] : "simple");
-$searchterm =  (isset($_REQUEST['searchterm']) ? escapestring($_REQUEST['searchterm']) : false);
+// Maintenance fork (3.5.82/3.5.83 port): the term's %, _ and ! are matched
+// literally, not as LIKE wildcards - the whole pattern is built with an
+// explicit escape character, then quoted for SQL as one string. Array-typed
+// inputs are rejected instead of coercing.
+if(!is_string($searchtype) || (isset($_REQUEST['searchterm']) && !is_string($_REQUEST['searchterm']))) errorExit(_ERROR);
+$rawterm = (isset($_REQUEST['searchterm']) ? $_REQUEST['searchterm'] : "");
+$searchterm = $rawterm !== "" ? escapestring("%".strtr($rawterm, array("!" => "!!", "%" => "!%", "_" => "!_"))."%") : false;
 
 if(isset($_POST['submit']) || isset($_GET['offset'])) {
 	$output .= "<div id=\"pagetitle\">"._RESULTS."</div>";
 	$query = array();
 	$countquery = array();
-	$scountquery = array();	
-	if($searchtype == "fulltext") {
-		$query = "SELECT stories.*, "._PENNAMEFIELD." as penname, UNIX_TIMESTAMP(stories.date) as date, UNIX_TIMESTAMP(stories.updated) as updated FROM "._AUTHORTABLE.", ".TABLEPREFIX."fanfiction_stories as stories, ".TABLEPREFIX."fanfiction_chapters as chapter WHERE chapter.storytext LIKE '%$searchterm%' AND chapter.sid = stories.sid AND stories.uid = "._UIDFIELD;
-		$countquery = "SELECT count(stories.sid) FROM ".TABLEPREFIX."fanfiction_stories as stories, ".TABLEPREFIX."fanfiction_chapters as chapter WHERE chapter.storytext LIKE '%$searchterm%' AND chapter.sid = stories.sid GROUP BY stories.sid";
-		$query .= " "._ORDERBY;
-		search($query, $countquery);
-		$tpl->assign("output", $output);
-		$tpl->printToScreen();
-		dbclose( );			
-		exit( );
-	}
-	if($searchterm && strlen($searchterm) < 3) {
+	$scountquery = array();
+	// Maintenance fork (3.5.83 port): unknown search modes are rejected
+	// rather than broadening results, and full-text search requires the
+	// database chapter store (file-storage sites would search stale text).
+	if(!in_array($searchtype, array("title", "summary", "penname", "advanced", "fulltext"), true)) errorExit(_ERROR);
+	if($searchtype == "fulltext" && $store != "mysql") errorExit(_ERROR);
+	if(($searchtype != "advanced" && trim($rawterm) === "") || ($searchterm !== false && strlen($rawterm) < 3)) {
 		errorExit(_SEARCHTERMTOOSHORT);
+	}
+	if($searchtype == "fulltext") {
+		// Maintenance fork (3.5.82/3.5.83 port): EXISTS keeps rows and
+		// counts distinct, only VALIDATED chapter text is searched (the old
+		// join could reveal that an unpublished chapter matched a term),
+		// and the common filters below now apply instead of returning early.
+		$fulltext = "EXISTS (SELECT 1 FROM ".TABLEPREFIX."fanfiction_chapters AS chapter WHERE chapter.sid = stories.sid AND chapter.validated > 0 AND chapter.storytext LIKE '$searchterm' ESCAPE '!')";
+		$query[] = $fulltext;
+		$countquery[] = $fulltext;
+		$scountquery[] = "1 = 0"; // Series have no chapter text.
 	}
 	if($searchterm) {
 		if($searchtype == "title") {
-			$query[] = "stories.title LIKE '%$searchterm%'";
-			$countquery[] = "stories.title LIKE '%$searchterm%'";
-			$scountquery[] = "series.title LIKE '%$searchterm%'";
+			$query[] = "stories.title LIKE '$searchterm' ESCAPE '!'";
+			$countquery[] = "stories.title LIKE '$searchterm' ESCAPE '!'";
+			$scountquery[] = "series.title LIKE '$searchterm' ESCAPE '!'";
 		}
 		if($searchtype == "summary") {
-			$query[] = "stories.summary LIKE '%$searchterm%'";
-			$countquery[] = "stories.summary LIKE '%$searchterm%'";
-			$scountquery[] = "series.summary LIKE '%$searchterm%'";
+			$query[] = "stories.summary LIKE '$searchterm' ESCAPE '!'";
+			$countquery[] = "stories.summary LIKE '$searchterm' ESCAPE '!'";
+			$scountquery[] = "series.summary LIKE '$searchterm' ESCAPE '!'";
 		}
 		if($searchtype == "penname") {
-			$authorquery = dbquery(_MEMBERLIST." WHERE "._PENNAMEFIELD." LIKE '%$searchterm%' GROUP BY "._UIDFIELD);
+			$authorquery = dbquery(_MEMBERLIST." WHERE "._PENNAMEFIELD." LIKE '$searchterm' ESCAPE '!' GROUP BY "._UIDFIELD);
 			$authorlist = array();
 			while($auth = dbassoc($authorquery)) {
 				$authorlist[] = $auth['uid'];
 			}
 			if(count($authorlist) > 0) {
 				$authors = implode(",",$authorlist);
-				$query = "SELECT stories.*, "._PENNAMEFIELD." as penname, UNIX_TIMESTAMP(stories.date) as date, UNIX_TIMESTAMP(stories.updated) as updated FROM ("._AUTHORTABLE.", ".TABLEPREFIX."fanfiction_stories as stories) LEFT JOIN ".TABLEPREFIX."fanfiction_coauthors as coauth ON coauth.sid = stories.sid WHERE "._UIDFIELD." = stories.uid AND stories.validated > 0 AND (FIND_IN_SET(stories.uid, '$authors') > 0 OR FIND_IN_SET(coauth.uid, '$authors') > 0) ";
-				$countquery = "SELECT COUNT(stories.sid) FROM ".TABLEPREFIX."fanfiction_stories as stories LEFT JOIN ".TABLEPREFIX."fanfiction_coauthors as coauth ON coauth.sid = stories.sid WHERE stories.validated > 0 AND (FIND_IN_SET(stories.uid, '$authors') > 0 OR FIND_IN_SET(coauth.uid, '$authors') > 0)";
-				search($query, $countquery);
-				$tpl->assign("output", $output);
-				$tpl->printToScreen();
-				dbclose( );			
-				exit( );
+				// Maintenance fork (3.5.83 port): EXISTS instead of a LEFT
+				// JOIN, so matching co-authors do not duplicate stories or
+				// inflate pagination totals.
+				$penmatch = "(FIND_IN_SET(stories.uid, '$authors') > 0 OR EXISTS (SELECT 1 FROM ".TABLEPREFIX."fanfiction_coauthors AS coauth WHERE coauth.sid = stories.sid AND FIND_IN_SET(coauth.uid, '$authors') > 0))";
+				$query[] = $penmatch;
+				$countquery[] = $penmatch;
+				$scountquery[] = "FIND_IN_SET(series.uid, '$authors') > 0";
 			}
 			else {
 				$query[] = "1 = 0";
@@ -97,9 +108,9 @@ if(isset($_POST['submit']) || isset($_GET['offset'])) {
 			}
 		}
 		if($searchtype == "advanced") {
-			$query[] = "(stories.summary LIKE '%$searchterm%' OR stories.title LIKE '%$searchterm%') ";
-			$countquery[] = "(stories.summary LIKE '%$searchterm%' OR stories.title LIKE '%$searchterm%') ";
-			$scountquery[] = "(summary LIKE '%$searchterm%' OR title LIKE '%$searchterm%') ";
+			$query[] = "(stories.summary LIKE '$searchterm' ESCAPE '!' OR stories.title LIKE '$searchterm' ESCAPE '!') ";
+			$countquery[] = "(stories.summary LIKE '$searchterm' ESCAPE '!' OR stories.title LIKE '$searchterm' ESCAPE '!') ";
+			$scountquery[] = "(summary LIKE '$searchterm' ESCAPE '!' OR title LIKE '$searchterm' ESCAPE '!') ";
 		}
 	}
 	if(isset($_REQUEST['authors'])) {

@@ -363,8 +363,15 @@ $db->query("DELETE FROM fanfiction_reviews WHERE uid = 12 AND type = 'ST' AND it
 // The response form is rendered to the review owner on the revres panel.
 get("$base/user.php?action=revres&reviewid=$reviewid", $body, $status, $ownerJar);
 if (preg_match("/name=[\"']rid[\"'] value=[\"']([0-9]+)[\"']/", (string) $body, $ridMatch)) {
+	// 3.5.83 port: the response form carries a session token; a tokenless
+	// POST must be refused before anything is stored.
+	preg_match("/name=[\"']csrf[\"'] value=[\"']([0-9a-f]{64})[\"']/", (string) $body, $revCsrf);
 	post("$base/user.php?action=revres", array(
-		'submit' => 'Submit', 'rid' => $ridMatch[1], 'response' => '<script>alert(1)</script>harmless words',
+		'submit' => 'Submit', 'rid' => $ridMatch[1], 'response' => 'tokenless attempt',
+	), $body, $status, $ownerJar);
+	check("tokenless review response is refused", strpos((string) $body, 'tokenless attempt') === false);
+	post("$base/user.php?action=revres", array(
+		'submit' => 'Submit', 'rid' => $ridMatch[1], 'response' => '<script>alert(1)</script>harmless words', 'csrf' => $revCsrf[1] ?? '',
 	), $body, $status, $ownerJar);
 	check("author response stores no script tag", strpos((string) row_scalar($db, "SELECT review FROM fanfiction_reviews WHERE reviewid = " . (int) $ridMatch[1]), '<script>') === false);
 } else {

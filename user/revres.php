@@ -26,6 +26,10 @@ if(!defined("_CHARSET")) exit( );
 
 	$output .= "<div id=\"pagetitle\">"._MANAGEREVIEWS."</div>";
 	if(isset($_POST['submit'])) {
+		// Maintenance fork (3.5.83 port): the response form carries a
+		// session token; a POST without it changes nothing. Upstream added
+		// the same check in 3.5.83 using its own helpers.
+		if(!ef_csrf_verify()) accessDenied( );
 		// Maintenance fork: the form posts rid; upstream interpolated it raw
 		// into the SELECT. Only a numeric id may reach the statement.
 		$reviewid = isset($_POST['rid']) && isNumber($_POST['rid']) ? $_POST['rid'] : false;
@@ -119,7 +123,7 @@ if(!defined("_CHARSET")) exit( );
 			$revlist->assign("member", $member );
 			$revlist->assign("oddeven", "odd");
 			$output .= $revlist->getOutputContent( );
-			$output .= "<form method=\"POST\" enctype=\"multipart/form-data\" action=\"user.php?action=revres\">";
+			$output .= "<form method=\"POST\" enctype=\"multipart/form-data\" action=\"user.php?action=revres\">".ef_csrf_field( );
 			$output .= "<INPUT type=\"hidden\" name=\"rid\" value=\"$reviewid\">
 				<div style=\"text-align: center;\"><label for=\"response\">"._AUTHORSRESPONSE.":</label><span style='clear: left;'>&nbsp;</span></div>
 				<div class='shorttextarea'><textarea class=\"textbox\" name=\"response\" id=\"response\" style='width: 100%;' rows=\"5\"></TEXTAREA></div>";

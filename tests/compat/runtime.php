@@ -128,6 +128,26 @@ check('bridge get_session_vars gates the uid cookie with isNumber',
 $bridgeLost = file_get_contents($root . '/bridges/default/lostpassword.php');
 check('bridge lost-password escapes the email before SQL',
     strpos($bridgeLost, "escapestring(descript(\$_POST['email']))") !== false);
+// Item 64 (official 3.5.82/3.5.83/3.5.84 ports): search wildcards are
+// literal (explicit ESCAPE '!' clauses), full-text search reads only
+// validated chapter text through EXISTS, unknown modes are refused, and
+// the category dropdown endpoint escapes the reflected element name.
+$searchSrc = file_get_contents($root . '/search.php');
+check('search escapes LIKE wildcards with an explicit escape char',
+    substr_count($searchSrc, "ESCAPE '!'") >= 6
+        && strpos($searchSrc, 'array("!" => "!!", "%" => "!%", "_" => "!_")') !== false);
+check('fulltext search is EXISTS over validated chapter text',
+    strpos($searchSrc, 'chapter.validated > 0 AND chapter.storytext LIKE') !== false
+        && strpos($searchSrc, 'in_array($searchtype, array("title", "summary", "penname", "advanced", "fulltext"), true)') !== false);
+$catSrc = file_get_contents($root . '/includes/categorylist.php');
+check('categorylist validates and escapes the element parameter',
+    strpos($catSrc, "preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*$/', \$_GET['element'])") !== false
+        && strpos($catSrc, 'addslashes($_GET') !== false);
+$revresSrc = file_get_contents($root . '/user/revres.php');
+check('review responses require the session token (3.5.83 port)',
+    strpos($revresSrc, 'ef_csrf_verify()') !== false
+        && strpos($revresSrc, 'ef_csrf_field( )') !== false);
+
 // Item 63 (upstream efiction3-mod issue #11): the series rating UPDATE
 // must gate on the rating aggregate, not the text-review count, or
 // rate-only submissions never count toward the series rating.

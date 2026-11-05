@@ -50,7 +50,7 @@ include("blocks/".$blocks['poll']['file']);
 		$output .= "<label for=\"poll_opts\">"._POLLOPTS."</label><textarea name='poll_opts' id='poll_opts' class='mceNoEditor' cols='40' rows='5'></textarea><br />";
 		$output .= "<INPUT type=\"submit\" class=\"button\" name=\"submit\" value=\""._SUBMIT."\"></form></div>";
 	}
-	$oldpolls = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_poll WHERE poll_end != '0000-00-00 00:00:00' ORDER BY poll_id DESC");
+	$oldpolls = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_poll WHERE poll_end IS NOT NULL AND CAST(poll_end AS CHAR) != '0000-00-00 00:00:00' ORDER BY poll_id DESC");
 	if(dbnumrows($oldpolls)) {
 		$output .= "<table class='tblborder' style='width: 400px; margin: 1em auto; text-align: center;'><tr><th>"._POLLQUESTION."</th><th>"._OPTIONS."</th></tr>";
 		while($poll = dbassoc($oldpolls)) {

@@ -140,6 +140,11 @@ check('fulltext search is EXISTS over validated chapter text',
     strpos($searchSrc, 'chapter.validated > 0 AND chapter.storytext LIKE') !== false
         && strpos($searchSrc, 'in_array($searchtype, array("title", "summary", "penname", "advanced", "fulltext"), true)') !== false);
 $catSrc = file_get_contents($root . '/includes/categorylist.php');
+$charSrc = file_get_contents($root . '/includes/characterlist.php');
+check('characterlist validates and escapes the element parameter',
+    strpos($charSrc, "preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*$/', \$_GET['element'])") !== false
+        && strpos($charSrc, 'addslashes($_GET') !== false);
+
 check('categorylist validates and escapes the element parameter',
     strpos($catSrc, "preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*$/', \$_GET['element'])") !== false
         && strpos($catSrc, 'addslashes($_GET') !== false);

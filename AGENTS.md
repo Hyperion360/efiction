@@ -34,7 +34,11 @@ quiet working-tree delete.
   self-deprecation or hedging - state findings plainly, credit their
   commit as the lead, let the reproduction and the fix carry the
   authority. Concise, straightforward, plain English; get to the point
-  and stay on it, no filler flourishes or metaphors ("rabbit hole").
+  and stay on it, no filler flourishes or metaphors ("rabbit hole"), no
+  announcing the reveal ("It pointed me here, and I have the answer" -
+  the body is the answer; the opener is the thank-you and the
+  reference, full stop). Where else the fix landed says "already,"
+  never "first": the order is our internal process, not PR content.
   Active voice, natural tense: "the endpoint returns a fatal," not "a
   fatal was returned"; past for the investigation and history, present
   for what the code does now and what the PR changes, future only for

@@ -27,6 +27,20 @@ quiet working-tree delete.
   the only long-lived branch.
 - Commits: repo git identity; no tool-credit trailers or tool names in
   messages.
+- Pull-request bodies and comments, here and in every eFiction-lineage
+  repo we contribute to, are polite, friendly, and competent: no talking
+  down or correcting the other person; contractions (rewrite any
+  sentence that can use don't/can't/it's and doesn't); no
+  self-deprecation or hedging - state findings plainly, credit their
+  commit as the lead, let the reproduction and the fix carry the
+  authority. Concise, straightforward, plain English; get to the point
+  and stay on it, no filler flourishes or metaphors ("rabbit hole").
+  Active voice, natural tense: "the endpoint returns a fatal," not "a
+  fatal was returned"; past for the investigation and history, present
+  for what the code does now and what the PR changes, future only for
+  reader steps - don't force present tense where it reads unnaturally.
+  Technical precision (file names, reproductions, commands) is
+  unchanged.
 - Every push passes the local pre-push leak scan (public visibility) before
   it leaves the machine.
 - GitHub is canonical. SourceForge (`sf` remote) is a mirror kept current by

@@ -23,6 +23,9 @@
 // ----------------------------------------------------------------------
 
 if(!defined("_CHARSET")) exit( );
+// Maintenance fork (3.5.88 port): category fields follow a storage/rendering
+// policy of their own; see includes/category_helpers.php.
+require_once __DIR__.'/../includes/category_helpers.php';
 
 function build_cat_row($thiscat, $thiscatinfo) {
 	global $catlist, $oddeven, $onpic, $down, $up;
@@ -98,6 +101,15 @@ function relevelcategory($cat, $leveldown) {
 		}
 	}
 	if (isset($_POST["submit"]) && !isset($_GET['catcounts'])) {
+		// Maintenance fork (3.5.88 port): names are stored as plain text,
+		// descriptions pass the category safe-HTML engine, and the image is a
+		// filename below the skin's images directory or nothing at all.
+		foreach(array('category', 'description', 'image') as $field) {
+			if(isset($_POST[$field]) && !is_string($_POST[$field])) accessDenied(_ERROR.' ('.$field.')');
+		}
+		$categoryname = escapestring(ef_category_name(isset($_POST['category']) ? $_POST['category'] : ''));
+		$description = escapestring(ef_category_description(isset($_POST['description']) ? $_POST['description'] : ''));
+		$image = escapestring(ef_category_image(isset($_POST['image']) ? $_POST['image'] : ''));
 		if(isset($_POST['catid']) && $_POST['parentcatid'] == $_POST['catid']) {
 			$output .= write_error(_ACTIONCANCELLED." "._CATERROR);
 			$tpl->assign( "output", $output );
@@ -116,12 +128,12 @@ function relevelcategory($cat, $leveldown) {
 		$displayorder = (isNumber($_POST['orderafter']) ? $_POST['orderafter'] : 0) + 1;
 		if($_GET["cat"] == "new") { 
 			$query = dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = (displayorder + 1) WHERE displayorder > '".$_POST['orderafter']."' AND leveldown = '$leveldown' AND parentcatid ='".$_POST['parentcatid']."'");
-			$catresult = dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_categories (category, parentcatid, description, locked, image, leveldown, displayorder) VALUES ('".addslashes(descript(strip_tags(trim($_POST['category']))))."', '".$_POST['parentcatid']."', '".addslashes(descript($_POST['description']))."', '$locked', '".$_POST['image']."', '$leveldown', '$displayorder')");
+			$catresult = dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_categories (category, parentcatid, description, locked, image, leveldown, displayorder) VALUES ('$categoryname', '".$_POST['parentcatid']."', '$description', '$locked', '$image', '$leveldown', '$displayorder')");
 		}
 		else {
 			$oldinfo = dbquery("SELECT displayorder, parentcatid, leveldown FROM ".TABLEPREFIX."fanfiction_categories WHERE catid = '$_GET[cat]' LIMIT 1");
 			list($oldorder, $oldparent, $oldleveldown) = dbrow($oldinfo);
-			$catresult = "UPDATE ".TABLEPREFIX."fanfiction_categories SET category = '".addslashes(descript($_POST['category']))."', description = '".addslashes(descript($_POST['description']))."', locked = '$locked', parentcatid = '".$_POST['parentcatid']."', image = '".$_POST['image']."', leveldown = '$leveldown', displayorder = '$displayorder' WHERE catid = '".$_POST['catid']."'";
+			$catresult = "UPDATE ".TABLEPREFIX."fanfiction_categories SET category = '$categoryname', description = '$description', locked = '$locked', parentcatid = '".$_POST['parentcatid']."', image = '$image', leveldown = '$leveldown', displayorder = '$displayorder' WHERE catid = '".$_POST['catid']."'";
 			if($oldparent == $_POST['parentcatid']) {
 				if($oldorder && $oldorder < $displayorder) {
 					dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = displayorder - 1 WHERE displayorder > $oldorder AND displayorder < $displayorder");
@@ -169,7 +181,7 @@ function relevelcategory($cat, $leveldown) {
 			$catlist = array( );
 			$catresults = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_categories ORDER BY leveldown, displayorder");
 			while($cat = dbassoc($catresults)) {
-				$catlist[$cat['catid']] = array("name" => stripslashes($cat['category']), "pid" => $cat['parentcatid'], "order" => $cat['displayorder'], "locked" => $cat['locked'], "leveldown" => $cat['leveldown']);
+				$catlist[$cat['catid']] = array("name" => ef_category_label($cat['category']), "pid" => $cat['parentcatid'], "order" => $cat['displayorder'], "locked" => $cat['locked'], "leveldown" => $cat['leveldown']);
 			}
 		}
 
@@ -203,9 +215,9 @@ function relevelcategory($cat, $leveldown) {
 					<select name='orderafter' id='orderafter'>";
 			$output .= "<option value='0'>"._MOVETOP."</option>".(isset($opt2) ? $opt2 : "")."</select> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_ORDERAFTER."</span></A></div>
 				<div><label for='category'>"._CATNAME.": </label>
-				<INPUT  type='text' class='textbox=' name='category'".($new ? ">" : "value='$cat1[category]'><input type='hidden' name='catid' value='$cat1[catid]'>")." <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_CATNAME."</span></A></div>
+				<INPUT  type='text' class='textbox=' name='category' ".($new ? ">" : "value='".ef_category_label($cat1['category'])."'><input type='hidden' name='catid' value='".(int)$cat1['catid']."'>")." <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_CATNAME."</span></A></div>
 				<div><label for='description'>"._DESC.": </label><A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_CATDESC."</span></A>
-				<div style='margin-left: 30%; padding-left: 1em;'><textarea class='textbox' id='description' name='description' id='description' cols='35' rows='4'>".(!$new ? $cat1['description'] : "")."</textarea></div>";
+				<div style='margin-left: 30%; padding-left: 1em;'><textarea class='textbox' id='description' name='description' id='description' cols='35' rows='4'>".(!$new ? ef_category_h(stripslashes($cat1['description'])) : "")."</textarea></div>";
 			if($tinyMCE) 
 				$output .= "<div class='tinytoggle'><input type='checkbox' name='toggle' onclick=\"toogleEditorMode('description');\" checked><label for='toggle'>"._TINYMCETOGGLE."</label></div>";
 			
@@ -213,7 +225,7 @@ function relevelcategory($cat, $leveldown) {
 				<div><label for='locked'>"._LOCKED.": </label>
 				<INPUT type='checkbox' class='checkbox' name='locked'".(!$new && $cat1['locked'] == 1 ? "checked" : "")."> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_LOCKED."</span></A></div>
 				<div><label for='image'>"._IMAGE.": </label>
-				<INPUT  type='text' class='textbox='  name='image'".(!$new && $cat1['image'] != "" ? "value='$cat1[image]'": "")."> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_CATIMAGE."</span></A></div>
+				<INPUT  type='text' class='textbox='  name='image' ".(!$new && $cat1['image'] != "" ? "value='".ef_category_h($cat1['image'])."'": "")."> <A HREF=\"#\" class=\"pophelp\">[?]<span>"._HELP_CATIMAGE."</span></A></div>
 				<INPUT type='submit' class='button' id='submit' value='"._SUBMIT."' name='submit'>
 				</form></div><div style='clear: both;'>&nbsp;</div></div>";
 		}
@@ -224,7 +236,7 @@ function relevelcategory($cat, $leveldown) {
 			$catlist = array( );
 			$catresults = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_categories ORDER BY leveldown, displayorder");
 			while($cat = dbassoc($catresults)) {
-				$catlist[$cat['catid']] = array("name" => stripslashes($cat['category']), "pid" => $cat['parentcatid'], "order" => $cat['displayorder'], "locked" => $cat['locked'], "leveldown" => $cat['leveldown']);
+				$catlist[$cat['catid']] = array("name" => ef_category_label($cat['category']), "pid" => $cat['parentcatid'], "order" => $cat['displayorder'], "locked" => $cat['locked'], "leveldown" => $cat['leveldown']);
 			}
 		$output .= "
 <table class=\"tblborder\" align=\"center\" cellspacing=\"0\" cellpadding=\"3\" style='margin: 0 auto;' width=\"90%\">

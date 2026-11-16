@@ -21,6 +21,9 @@
 // To read the license please visit http://www.gnu.org/copyleft/gpl.html
 // ----------------------------------------------------------------------
 if(!defined("_CHARSET")) exit( );
+// Maintenance fork (3.5.88 port): category fields follow a storage/rendering
+// policy of their own; see includes/category_helpers.php.
+require_once __DIR__.'/../includes/category_helpers.php';
 
 
 $disablesorts = array("categories");
@@ -47,16 +50,18 @@ $disablesorts = array("categories");
 		$col = 0;
 		$count = 0;
 		while($cats = dbassoc($subs)) {
+			$cats['category'] = ef_category_label($cats['category']);
+			$cats['image'] = ef_category_image($cats['image']);
 			unset($catinfo);
 			$count++;
 			if(file_exists("$skindir/categories.tpl")) $cat = new TemplatePower( "$skindir/categories.tpl" );
 			else $cat = new TemplatePower("default_tpls/categories.tpl");
 			$cat->prepare( );
 			$cat->newBlock("categoryblock");
-			$cat->assign("image", ($cats['image'] && file_exists("$skindir/images/".$cats['image']) ? "<img src=\"$skindir/images/".$cats['image']."\" alt=\"".$cats['category']."\" title=\"".$cats['category']."\">" : ""));
+			$cat->assign("image", ($cats['image'] && file_exists("$skindir/images/".$cats['image']) ? "<img src=\"".ef_category_h("$skindir/images/".$cats['image'])."\" alt=\"".$cats['category']."\" title=\"".$cats['category']."\">" : ""));
 			$cat->assign("link", "<a href=\"browse.php?type=categories&amp;catid=".$cats['catid']."\">".$cats['category']."</a>");
 			$cat->assign("count", "[".$cats['numitems']."]");
-			$cat->assign("description", stripslashes($cats['description']));
+			$cat->assign("description", ef_category_description(stripslashes($cats['description'])));
 			if($displaycolumns == 1) $content .= "<div>".$cat->getOutputContent( )."</div>";
 			else $collist[$col][] = "<div>".$cat->getOutputContent( )."</div>";
 			if(($mod && $col < $mod && $count == $colcount) || ($mod && $col >= $mod && $count >= ($colcount - 1)) || (!$mod && $count == $colcount)) {

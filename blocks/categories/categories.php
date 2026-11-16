@@ -24,6 +24,9 @@
 // ----------------------------------------------------------------------
 
 if(!defined("_CHARSET")) exit( );
+// Maintenance fork (3.5.88 port): category fields follow a storage/rendering
+// policy of their own; see includes/category_helpers.php.
+require_once __DIR__.'/../../includes/category_helpers.php';
 
 
 
@@ -37,13 +40,15 @@ if(!defined("_CHARSET")) exit( );
 		if($total) {
 			if(!empty($blocks['categories']['tpl'])) {
 				while($categories = dbassoc($result4)) {
+					$categories['category'] = ef_category_label($categories['category']);
+					$categories['image'] = ef_category_image($categories['image']);
 					$list = floor($total / $displaycolumns);
 					if($total % $displaycolumns != 0) $list++;
 					$tpl->newBlock("categoriesblock");
-					if($categories['image'] && file_exists("$skindir/images/".$categories['image'])) $tpl->assign("categoryimage", "$skindir/images/".$categories['image']);
+					if($categories['image'] && file_exists("$skindir/images/".$categories['image'])) $tpl->assign("categoryimage", ef_category_h("$skindir/images/".$categories['image']));
 					$tpl->assign("categorytitle", "<a href=\"browse.php?type=categories&amp;catid=".$categories['catid']."\">".$categories['category']."</a>");
 					$tpl->assign("numstories", "(".$categories['numitems'].")");
-					$tpl->assign("categorydescription", stripslashes($categories['description']));
+					$tpl->assign("categorydescription", ef_category_description(stripslashes($categories['description'])));
 					$list--;
 					if($count % $displaycolumns == 0) {
 						$tpl->assign("categorycolumn", "</tr> ".($count < $list ? "<tr>" : ""));
@@ -60,11 +65,13 @@ if(!defined("_CHARSET")) exit( );
 				$template = (!empty($blocks['categories']['template']) ? stripslashes($blocks['categories']['template']) : "{image} {link} [{count}] {description}"); 
 				$search = array("@\{image\}@", "@\{link\}@", "@\{count\}@", "@\{description\}@");
 				while($categories = dbassoc($result4)) {
+					$categories['category'] = ef_category_label($categories['category']);
+					$categories['image'] = ef_category_image($categories['image']);
 					unset($catinfo);
 					$count++;
 					$replace = array(
-						(!empty($categories['image']) && file_exists("$skindir/images/".$categories['image']) ? "<img src=\"$skindir/images/".$categories['image']."\" alt=\"".$categories['category']."\" title=\"".$categories['category']."\">" : ""),
-						"<a href=\"browse.php?type=categories&amp;catid=".$categories['catid']."\">".$categories['category']."</a>", $categories['numitems'], stripslashes($categories['description']));
+						(!empty($categories['image']) && file_exists("$skindir/images/".$categories['image']) ? "<img src=\"".ef_category_h("$skindir/images/".$categories['image'])."\" alt=\"".$categories['category']."\" title=\"".$categories['category']."\">" : ""),
+						"<a href=\"browse.php?type=categories&amp;catid=".$categories['catid']."\">".$categories['category']."</a>", $categories['numitems'], ef_category_description(stripslashes($categories['description'])));
 					$catinfo = preg_replace($search, $replace, $template);
 					if($catcolumns == 1) $collist[] = $catinfo;
 					else $collist[$col][] = $catinfo;

@@ -145,9 +145,64 @@ check('characterlist validates and escapes the element parameter',
     strpos($charSrc, "preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*$/', \$_GET['element'])") !== false
         && strpos($charSrc, 'addslashes($_GET') !== false);
 
-check('categorylist validates and escapes the element parameter',
-    strpos($catSrc, "preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*$/', \$_GET['element'])") !== false
-        && strpos($catSrc, 'addslashes($_GET') !== false);
+check('categorylist validates the element parameter and JSON-encodes it (3.5.88 port)',
+    strpos($catSrc, "preg_match('/^(?:[A-Za-z_][A-Za-z0-9_.-]*|[0-9]+)\$/D', \$_GET['element'])") !== false
+        && strpos($catSrc, 'ef_category_json($element)') !== false);
+check('categorylist sends nosniff, escapes the sitekey, and tolerates old schemas',
+    strpos($catSrc, "header('X-Content-Type-Options: nosniff')") !== false
+        && strpos($catSrc, "escapestring(\$sitekey)") !== false
+        && strpos($catSrc, "SHOW COLUMNS FROM ") !== false
+        && strpos($catSrc, "in_array('leveldown', \$ef_has)") !== false);
+
+// Item 66 (official 3.5.85-3.5.88 port): category fields follow a
+// storage/rendering policy of their own. The engine intersects allowed_tags
+// with a static safe-element list, so a permissive site setting must not
+// resurrect executable markup.
+require_once $root . '/includes/category_helpers.php';
+global $allowed_tags;
+$allowed_tags = '<b><i><img><script><a>';
+check('category name is plain text: tags stripped after entity-decode',
+    ef_category_name('&lt;script&gt;alpha &lt;b&gt;beta') === 'alpha beta');
+check('category label renders a stored dirty name escaped and tag-free',
+    ef_category_label('<img src=x onerror=alert(1)> A &amp; B \\\\') === 'A &amp; B \\');
+check('category image accepts a plain filename',
+    ef_category_image('cat-icon.png') === 'cat-icon.png');
+check('category image rejects traversal, absolute paths, control chars and quotes',
+    ef_category_image('../../config.php') === ''
+        && ef_category_image('/etc/passwd') === ''
+        && ef_category_image("a\tx.png") === ''
+        && ef_category_image('a"b.png') === ''
+        && ef_category_image('a?b.png') === '');
+check('category JSON embedding emits no raw angle brackets',
+    strpos(ef_category_json('</script><script>'), '</') === false
+        && strpos(ef_category_json('</script><script>'), '<script') === false);
+check('category description drops script tags even when allowed_tags permits them, content renders inert',
+    strpos(ef_category_description('<script>alert(1)</script>text'), '<script') === false
+        && strpos(ef_category_description('<script>alert(1)</script>text'), 'alert(1)') !== false);
+check('category description drops event handlers and javascript: links',
+    strpos(ef_category_description('<img src="https://x/i.png" onerror="alert(1)">'), 'onerror') === false
+        && strpos(ef_category_description('<a href="javascript:alert(1)">c</a>'), 'javascript:') === false);
+check('category description re-escapes entity-decoded text',
+    ef_category_description('&lt;b&gt;') === '&lt;b&gt;');
+check('category description keeps safe configured markup and balances tags',
+    strpos(ef_category_description('<b>bold</b><i>italic'), '<b>bold</b><i>italic</i>') !== false
+        && strpos(ef_category_description('<img src="https://x/i.png" alt="p">'), '<img src="https://x/i.png" alt="p">') !== false);
+$admCatSrc = file_get_contents($root . '/admin/categories.php');
+check('admin categories stores name/description/image through the policy, image never raw',
+    strpos($admCatSrc, 'escapestring(ef_category_name(') !== false
+        && strpos($admCatSrc, 'escapestring(ef_category_description(') !== false
+        && strpos($admCatSrc, 'escapestring(ef_category_image(') !== false
+        && strpos($admCatSrc, "\$_POST['image'].\"'") === false
+        && strpos($admCatSrc, 'ef_category_label($cat1') !== false
+        && strpos($admCatSrc, 'ef_category_h(stripslashes($cat1[\'description\']))') !== false);
+$blkCatSrc = file_get_contents($root . '/blocks/categories/categories.php');
+$brwCatSrc = file_get_contents($root . '/browse/categories.php');
+check('categories block and browse render through the policy',
+    strpos($blkCatSrc, 'ef_category_label($categories[\'category\'])') !== false
+        && strpos($blkCatSrc, 'ef_category_description(stripslashes($categories[\'description\']))') !== false
+        && strpos($brwCatSrc, 'ef_category_label($cats[\'category\'])') !== false
+        && strpos($brwCatSrc, 'ef_category_h("$skindir/images/".$cats[\'image\'])') !== false
+        && strpos($brwCatSrc, 'ef_category_description(stripslashes($cats[\'description\']))') !== false);
 $revresSrc = file_get_contents($root . '/user/revres.php');
 check('review responses require the session token (3.5.83 port)',
     strpos($revresSrc, 'ef_csrf_verify()') !== false

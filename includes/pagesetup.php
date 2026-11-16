@@ -27,6 +27,11 @@ It also checks the common $_GET variables and cleans them up to prevent hacking 
 */
 
 if(!defined("_CHARSET")) exit( );
+// Maintenance fork (3.5.88 port review): the global category and character
+// lists render into guest-facing HTML on every page (sort menus, pickers,
+// breadcrumbs), so their names pass the same render policy as the block and
+// browse surfaces - stored markup in legacy rows must not reach the page.
+require_once __DIR__.'/category_helpers.php';
 
 $favtypes = array("SE" => "series", "ST" => "stories", "AU" =>"authors");
 $revtypes = array("SE" => "series", "ST" => "stories");
@@ -34,12 +39,12 @@ $revtypes = array("SE" => "series", "ST" => "stories");
 $catlist = array( );
 $catresults = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_categories ORDER BY leveldown, displayorder");
 while($cat = dbassoc($catresults)) {
-	$catlist[$cat['catid']] = array("name" => stripslashes($cat['category']), "pid" => $cat['parentcatid'], "order" => $cat['displayorder'], "locked" => $cat['locked'], "leveldown" => $cat['leveldown']);
+	$catlist[$cat['catid']] = array("name" => ef_category_label($cat['category']), "pid" => $cat['parentcatid'], "order" => $cat['displayorder'], "locked" => $cat['locked'], "leveldown" => $cat['leveldown']);
 }
 $charlist = array( );
 $result = dbquery("SELECT charname, catid, charid FROM ".TABLEPREFIX."fanfiction_characters ORDER BY charname");
 while($char = dbassoc($result)) {
-	$charlist[$char['charid']] = array("name" => stripslashes($char['charname']), "catid" => $char['catid']);
+	$charlist[$char['charid']] = array("name" => ef_category_h(ef_category_name(stripslashes($char['charname']))), "catid" => $char['catid']);
 }
 $classlist = array( );
 $classresults = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_classes ORDER BY class_name");

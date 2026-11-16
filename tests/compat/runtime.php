@@ -152,7 +152,10 @@ check('categorylist sends nosniff, escapes the sitekey, and tolerates old schema
     strpos($catSrc, "header('X-Content-Type-Options: nosniff')") !== false
         && strpos($catSrc, "escapestring(\$sitekey)") !== false
         && strpos($catSrc, "SHOW COLUMNS FROM ") !== false
-        && strpos($catSrc, "in_array('leveldown', \$ef_has)") !== false);
+        && strpos($catSrc, "in_array('leveldown', \$ef_has)") !== false
+        && strpos($catSrc, "\$action = '';") !== false
+        && strpos($catSrc, 'urlencode(ef_category_name(stripslashes(') !== false
+        && strpos($catSrc, 'urlencode(ef_category_utf8(') === false);
 
 // Item 66 (official 3.5.85-3.5.88 port): category fields follow a
 // storage/rendering policy of their own. The engine intersects allowed_tags
@@ -195,6 +198,43 @@ check('admin categories stores name/description/image through the policy, image 
         && strpos($admCatSrc, "\$_POST['image'].\"'") === false
         && strpos($admCatSrc, 'ef_category_label($cat1') !== false
         && strpos($admCatSrc, 'ef_category_h(stripslashes($cat1[\'description\']))') !== false);
+check('admin category statements carry no raw request interpolation',
+    strpos($admCatSrc, "\$_POST['parentcatid'].\"'") === false
+        && strpos($admCatSrc, "\$_POST['catid'].\"'") === false
+        && strpos($admCatSrc, "\$_POST['orderafter'].\"'") === false
+        && strpos($admCatSrc, "'\$_POST[parentcatid]'") === false
+        && strpos($admCatSrc, "'\$_GET[cat]'") === false
+        && strpos($admCatSrc, "\$_GET['cat'].\"'") === false
+        && strpos($admCatSrc, "relevelcategory(\$_GET['cat']") === false);
+$brwSrc = file_get_contents($root . '/includes/browsecategories.php');
+check('browsecategories twin endpoint mirrors the 3.5.88 categorylist treatment',
+    strpos($brwSrc, "header('X-Content-Type-Options: nosniff')") !== false
+        && strpos($brwSrc, 'Content-Type: text/javascript') !== false
+        && strpos($brwSrc, "preg_match('/^(?:[A-Za-z_][A-Za-z0-9_.-]*|[0-9]+)\$/D', \$_GET['element'])") !== false
+        && strpos($brwSrc, 'ef_category_json($element)') !== false
+        && strpos($brwSrc, "escapestring(\$sitekey)") !== false
+        && strpos($brwSrc, "echo \"var el = '\".\$_GET['element']") === false
+        && strpos($brwSrc, 'urlencode(ef_category_name(stripslashes(') !== false
+        && strpos($brwSrc, 'urlencode(ef_category_utf8(') === false
+        && strpos($brwSrc, 'htmlentities(str_replace($find') === false
+        && strpos($brwSrc, "addslashes(ef_category_name(stripslashes((string)\$char['charname'])))") !== false
+        && strpos($brwSrc, "SHOW COLUMNS FROM ") !== false
+        && strpos($brwSrc, "\$action = '';") !== false
+        && strpos($brwSrc, "preg_match('/^[A-Za-z0-9_-]+\$/D', \$settings['language'])") !== false);
+$pgsSrc = file_get_contents($root . '/includes/pagesetup.php');
+check('pagesetup global category and character lists render through the policy',
+    strpos($pgsSrc, "ef_category_label(\$cat['category'])") !== false
+        && strpos($pgsSrc, 'stripslashes($cat[\'category\'])') === false
+        && strpos($pgsSrc, "ef_category_h(ef_category_name(stripslashes(\$char['charname'])))") !== false
+        && strpos($pgsSrc, 'category_helpers.php') !== false);
+check('category admin delete path uses array_diff',
+    strpos($admCatSrc, 'array_diff($cats, array($catid))') !== false
+        && strpos($admCatSrc, 'array_dif(') === false);
+check('category utf8 fast path is byte-identical under UTF-8',
+    ef_category_utf8("caf\xC3\xA9") === "caf\xC3\xA9");
+check('category utf8 converts legacy charset labels',
+    shell_exec(escapeshellarg(PHP_BINARY) . ' -d error_reporting=E_ALL -r ' . escapeshellarg('define("_CHARSET", "ISO-8859-1"); require $argv[1]."/includes/category_helpers.php"; echo ef_category_utf8("caf\xE9");') . ' ' . escapeshellarg($root))
+        === "caf\xC3\xA9");
 $blkCatSrc = file_get_contents($root . '/blocks/categories/categories.php');
 $brwCatSrc = file_get_contents($root . '/browse/categories.php');
 check('categories block and browse render through the policy',

@@ -82,7 +82,7 @@ function relevelcategory($cat, $leveldown) {
 			while($story = dbassoc($stories)) {
 				$cats = explode(",", $story[catid]);
 				if(count($cats) == 1) $newcat = "-1";
-				else $newcat = implode(",", array_dif($cats, array($catid)));
+				else $newcat = implode(",", array_diff($cats, array($catid)));
 				dbquery("UPDATE ".TABLEPREFIX."fanfiction_stories SET catid = '$newcat' WHERE sid = '$story[sid]' LIMIT 1");					
 			}
 			$code = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_codeblocks WHERE code_type = 'delcategory'");
@@ -110,44 +110,51 @@ function relevelcategory($cat, $leveldown) {
 		$categoryname = escapestring(ef_category_name(isset($_POST['category']) ? $_POST['category'] : ''));
 		$description = escapestring(ef_category_description(isset($_POST['description']) ? $_POST['description'] : ''));
 		$image = escapestring(ef_category_image(isset($_POST['image']) ? $_POST['image'] : ''));
-		if(isset($_POST['catid']) && $_POST['parentcatid'] == $_POST['catid']) {
+		// Maintenance fork (review finding): the numeric form fields route
+		// through the same normalization the reorder handler uses; the
+		// statements below never splice raw request values.
+		$catid = isset($_POST['catid']) && isNumber($_POST['catid']) ? (int)$_POST['catid'] : 0;
+		$parentcatid = isset($_POST['parentcatid']) && isNumber($_POST['parentcatid']) ? (int)$_POST['parentcatid'] : -1;
+		$orderafter = isset($_POST['orderafter']) && isNumber($_POST['orderafter']) ? (int)$_POST['orderafter'] : 0;
+		$cat_id = isset($_GET['cat']) && isNumber($_GET['cat']) ? (int)$_GET['cat'] : 0;
+		if($catid && $parentcatid == $catid) {
 			$output .= write_error(_ACTIONCANCELLED." "._CATERROR);
 			$tpl->assign( "output", $output );
 			$tpl->printToScreen();
 			dbclose( );
 			exit( );
 		}
-		if($_POST['parentcatid'] != "-1") 	{
-			$parentquery = dbquery("SELECT leveldown FROM ".TABLEPREFIX."fanfiction_categories WHERE catid = '$_POST[parentcatid]'");
+		if($parentcatid != -1) 	{
+			$parentquery = dbquery("SELECT leveldown FROM ".TABLEPREFIX."fanfiction_categories WHERE catid = '$parentcatid'");
 			$parentresult = dbassoc($parentquery);
 			$leveldown = $parentresult['leveldown'] + 1;
 		}
 		else $leveldown = 0;
 		$locked = (isset($_POST['locked']) && $_POST['locked'] == "on" ? "1" : "0");
 
-		$displayorder = (isNumber($_POST['orderafter']) ? $_POST['orderafter'] : 0) + 1;
-		if($_GET["cat"] == "new") { 
-			$query = dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = (displayorder + 1) WHERE displayorder > '".$_POST['orderafter']."' AND leveldown = '$leveldown' AND parentcatid ='".$_POST['parentcatid']."'");
-			$catresult = dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_categories (category, parentcatid, description, locked, image, leveldown, displayorder) VALUES ('$categoryname', '".$_POST['parentcatid']."', '$description', '$locked', '$image', '$leveldown', '$displayorder')");
+		$displayorder = $orderafter + 1;
+		if($_GET["cat"] == "new") {
+			$query = dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = (displayorder + 1) WHERE displayorder > '$orderafter' AND leveldown = '$leveldown' AND parentcatid ='$parentcatid'");
+			$catresult = dbquery("INSERT INTO ".TABLEPREFIX."fanfiction_categories (category, parentcatid, description, locked, image, leveldown, displayorder) VALUES ('$categoryname', '$parentcatid', '$description', '$locked', '$image', '$leveldown', '$displayorder')");
 		}
 		else {
-			$oldinfo = dbquery("SELECT displayorder, parentcatid, leveldown FROM ".TABLEPREFIX."fanfiction_categories WHERE catid = '$_GET[cat]' LIMIT 1");
+			$oldinfo = dbquery("SELECT displayorder, parentcatid, leveldown FROM ".TABLEPREFIX."fanfiction_categories WHERE catid = '$cat_id' LIMIT 1");
 			list($oldorder, $oldparent, $oldleveldown) = dbrow($oldinfo);
-			$catresult = "UPDATE ".TABLEPREFIX."fanfiction_categories SET category = '$categoryname', description = '$description', locked = '$locked', parentcatid = '".$_POST['parentcatid']."', image = '$image', leveldown = '$leveldown', displayorder = '$displayorder' WHERE catid = '".$_POST['catid']."'";
-			if($oldparent == $_POST['parentcatid']) {
+			$catresult = "UPDATE ".TABLEPREFIX."fanfiction_categories SET category = '$categoryname', description = '$description', locked = '$locked', parentcatid = '$parentcatid', image = '$image', leveldown = '$leveldown', displayorder = '$displayorder' WHERE catid = '$catid'";
+			if($oldparent == $parentcatid) {
 				if($oldorder && $oldorder < $displayorder) {
 					dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = displayorder - 1 WHERE displayorder > $oldorder AND displayorder < $displayorder");
-					dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = $displayorder - 1 WHERE catid = '".$_GET['cat']."'");
+					dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = $displayorder - 1 WHERE catid = '$cat_id'");
 				}
 				if($oldorder > $displayorder) {
 					dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = displayorder + 1 WHERE displayorder >= $displayorder AND displayorder < $oldorder");
-					dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = $displayorder WHERE catid = '".$_GET['cat']."'");
+					dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = $displayorder WHERE catid = '$cat_id'");
 				}
-			} 
+			}
 			else {
-				if($oldleveldown != $leveldown) relevelcategory($_GET['cat'], $leveldown);
+				if($oldleveldown != $leveldown) relevelcategory($cat_id, $leveldown);
 				dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = displayorder -1 WHERE displayorder > $oldorder AND parentcatid = '$oldparent'");
-				dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = displayorder + 1 WHERE displayorder > '".$_POST['orderafter']."' AND parentcatid = '".$_POST['parentcatid']."'");
+				dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = displayorder + 1 WHERE displayorder > '$orderafter' AND parentcatid = '$parentcatid'");
 			}
 			$success = dbquery($catresult);
 		}

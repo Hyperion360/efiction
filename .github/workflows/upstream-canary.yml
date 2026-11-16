@@ -12,14 +12,16 @@ permissions:
 jobs:
   check:
     runs-on: ubuntu-latest
+    env: {TESTED_UPSTREAM: "3.5.88"}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with: {persist-credentials: false}
+      - name: Test feed parsing
+        run: sh tests/compat/upstream-feed.sh
       - name: Compare upstream feed
         id: feed
-        env: {TESTED_UPSTREAM: "3.5.88"}
         run: |
-          latest=$(curl -fsS --max-time 20 https://update.efiction.org/v3/3.5/latest.json | jq -r .version)
+          latest=$(curl -fsS --max-time 20 https://update.efiction.org/v3/3.5/latest.json | sh .github/scripts/upstream-version.sh)
           echo "latest=$latest"
           if [ "$(printf '%s\n' "$TESTED_UPSTREAM" "$latest" | sort -V | tail -1)" != "$TESTED_UPSTREAM" ]; then
             echo "newer=$latest" >> "$GITHUB_OUTPUT"
@@ -27,9 +29,11 @@ jobs:
       - name: Open tracking issue
         if: steps.feed.outputs.newer
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        env:
+          NEWER_VERSION: ${{ steps.feed.outputs.newer }}
         with:
           script: |
-            const newer = '${{ steps.feed.outputs.newer }}';
+            const newer = process.env.NEWER_VERSION;
             const {data: open} = await github.rest.issues.listForRepo({owner: context.repo.owner, repo: context.repo.repo, state: 'open', labels: 'upstream-release'});
             if (open.length === 0) {
               await github.rest.issues.create({
@@ -37,7 +41,7 @@ jobs:
                 labels: ['upstream-release'],
                 title: `Official eFiction ${newer} shipped — re-verify compatibility`,
                 body: [
-                  `update.efiction.org now serves ${newer}; this fork last verified against 3.5.7.`,
+                  `update.efiction.org now serves ${newer}; this fork last verified against ${process.env.TESTED_UPSTREAM}.`,
                   '',
                   'Re-verification steps:',
                   '1. Download the release zip and diff MODERNIZATION.md for schema or password-format changes.',

@@ -12,6 +12,9 @@ define("TABLEPREFIX", $tableprefix);
 foreach(array('allowed_tags', 'recentdays', 'sitename', 'url', 'multiplecats', 'minwords', 'maxwords', 'pwdsetting', 'imagewidth', 'imageheight') as $name) {
 	if(isset($settings[$name])) $$name = stripslashes((string)$settings[$name]);
 }
+// This fork's language file also interpolates $action (the official line's
+// does not); supply it so no PHP 8 notice reaches the JavaScript stream.
+$action = '';
 $lang = isset($settings['language']) && is_string($settings['language']) && preg_match('/^[A-Za-z0-9_-]+$/D', $settings['language']) ? $settings['language'] : 'en';
 if(!is_file(_BASEDIR."languages/$lang.php")) $lang = 'en';
 include(_BASEDIR."languages/$lang.php");
@@ -36,8 +39,11 @@ $element = isset($_GET['element']) && is_string($_GET['element']) && preg_match(
 echo "var el = ".ef_category_json($element).";\n";
 $x = 0;
 while($category = dbassoc($cats)) {
-	$label = ef_category_utf8(ef_category_name(stripslashes((string)$category['category'])));
-	echo "categories[$x] = new category(".(int)$category['parentcatid'].", ".(int)$category['catid'].", ".ef_category_json(urlencode($label)).", ".(int)$category['locked'].", ".(isset($category['displayorder']) ? (int)$category['displayorder'] : 0).");\r\n";
+	// The picker URL-decodes these labels with unescape(), which maps %XX to
+	// Latin-1 code points; the fork's default charset is ISO-8859-1, so the
+	// bytes must stay in the archive's own charset (no UTF-8 conversion).
+	$label = urlencode(ef_category_name(stripslashes((string)$category['category'])));
+	echo "categories[$x] = new category(".(int)$category['parentcatid'].", ".(int)$category['catid'].", ".ef_category_json($label).", ".(int)$category['locked'].", ".(isset($category['displayorder']) ? (int)$category['displayorder'] : 0).");\r\n";
 	$x++;
 }
 ?>

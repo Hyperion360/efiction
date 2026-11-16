@@ -519,7 +519,8 @@ if [ "$MODE" = "fresh" ]; then
 	# cover the empty-password case: an executed config.php returns an empty
 	# body, a dumped one always contains the literal assignments.
 	status=$(curl -s --max-time 60 -o "$BODY" -w '%{http_code}' "$BASE/config.php")
-	check_status "config.php request returns 200 (executed, not dumped)" 200 "$status"
+	# Apache denies this file through .htaccess; php -S executes it.
+	check_status "config.php request follows the server policy" "${EF_CONFIG_STATUS:-200}" "$status"
 	check_not_contains "config.php source not disclosed (no dbpass assignment)" '$dbpass' "$BODY"
 	if [ -n "$EF_DB_ADMIN_PASSWORD" ]; then
 		check_not_contains "config.php not readable as text (no dbpass value)" "$EF_DB_ADMIN_PASSWORD" "$BODY"

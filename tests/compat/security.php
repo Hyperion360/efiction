@@ -280,6 +280,41 @@ if (preg_match("/name='csrf' value='([0-9a-f]+)'/", (string) $body, $m) || preg_
 	check("message edit form carries a session token", false);
 }
 
+// Category creation omits catid by design. The authenticated form must save
+// sanitized fields without warning about a missing edit-only input.
+get("$base/admin.php?action=categories&cat=new", $body, $status, $adminJar);
+preg_match("/name=['\"]csrf['\"] value=['\"]([0-9a-f]{64})['\"]/", (string) $body, $categoryCsrf);
+check("new category form carries a session token", isset($categoryCsrf[1]));
+$categoryFields = array(
+    'submit' => 'Submit', 'csrf' => $categoryCsrf[1] ?? '',
+    'category' => '<b>Category probe</b>', 'description' => '<p>Safe <b>text</b><img src=x onerror=alert(1)></p>',
+    'image' => '../escape.png', 'parentcatid' => '-1', 'orderafter' => '0',
+);
+$categoryCount = row_scalar($db, "SELECT COUNT(*) FROM fanfiction_categories");
+$forgedCategoryFields = $categoryFields;
+unset($forgedCategoryFields['csrf']);
+post("$base/admin.php?action=categories&cat=new", $forgedCategoryFields, $body, $status, $adminJar);
+check("forged category create is denied", $status === '403' && row_scalar($db, "SELECT COUNT(*) FROM fanfiction_categories") === $categoryCount);
+post("$base/admin.php?action=categories&cat=new", $categoryFields, $body, $status, $adminJar);
+check("new category without edit-only id saves", $status === '200' && row_scalar($db, "SELECT COUNT(*) FROM fanfiction_categories WHERE category = 'Category probe'") === '1');
+check("new category without edit-only id has no PHP warnings", !preg_match('/\b(Warning|Fatal error|Parse error|Deprecated|Notice)\b/', (string) $body));
+check("new category strips image traversal", row_scalar($db, "SELECT image FROM fanfiction_categories WHERE category = 'Category probe'") === '');
+check("new category strips active description markup", strpos((string) row_scalar($db, "SELECT description FROM fanfiction_categories WHERE category = 'Category probe'"), 'onerror') === false);
+
+// Standalone picker responses are executable JavaScript; hostile query values
+// and stored character line breaks must not break that response contract.
+$characterLabel = "Two\nLines\rEnd \"quoted\"";
+$db->query("INSERT INTO fanfiction_characters (charname, catid, bio) VALUES ('" . $db->real_escape_string($characterLabel) . "', -1, '')");
+$characterId = (int) $db->insert_id;
+foreach (array('categorylist.php', 'browsecategories.php') as $picker) {
+    get("$base/includes/$picker?catid%5B%5D=1&element=" . rawurlencode('";alert(1);//'), $body, $status, $guestJar);
+    check("$picker rejects reflected code", $status === '200' && strpos((string) $body, 'var el = "";') !== false && strpos((string) $body, 'alert(1)') === false);
+    check("$picker emits no PHP errors for array ids", !preg_match('/\b(Warning|Fatal error|Parse error|Deprecated|Notice)\b/', (string) $body));
+}
+get("$base/includes/browsecategories.php?catid=-1&element=characters", $body, $status, $guestJar);
+check("character line breaks stay inside a JavaScript string", preg_match('/characters\[\d+\] = new Array\(' . $characterId . ', "Two\\\\nLines\\\\rEnd \\\\"quoted\\\\""\);/', (string) $body) === 1);
+$db->query("DELETE FROM fanfiction_characters WHERE charid = $characterId");
+
 // ---- 8. full-codebase QA hardening (2026-10-15) ------------------------------
 // Regression checks for the second hardening pass: cookie SQL injection in
 // the session bootstrap, the editbio authorization hole, browse.php input
@@ -545,10 +580,10 @@ $oldMode = (string) row_scalar($db, "SELECT @@SESSION.sql_mode");
 $db->query("SET SESSION sql_mode = ''");
 $db->query("DROP TABLE IF EXISTS efiction_probe_authors");
 $db->query("CREATE TABLE efiction_probe_authors (uid INT PRIMARY KEY, password varchar(40) NOT NULL default '0', date datetime NOT NULL default '0000-00-00 00:00:00')");
-$db->query("DROP USER IF EXISTS 'efnoalter'@'%'");
-$db->query("CREATE USER 'efnoalter'@'%' IDENTIFIED BY 'efnopass'");
-$db->query("GRANT SELECT, INSERT, UPDATE ON `" . $dbName . "`.* TO 'efnoalter'@'%'");
-$probeDb = @new mysqli($dbHost, 'efnoalter', 'efnopass', $dbName, $dbPort !== "" ? (int) $dbPort : 3306);
+$probeUser = "efnoalter_" . bin2hex(random_bytes(6));
+$db->query("CREATE USER '$probeUser'@'%' IDENTIFIED BY 'efnopass'");
+$db->query("GRANT SELECT, INSERT, UPDATE ON `" . $dbName . "`.* TO '$probeUser'@'%'");
+$probeDb = @new mysqli($dbHost, $probeUser, 'efnopass', $dbName, $dbPort !== "" ? (int) $dbPort : 3306);
 $denied = false;
 if ($probeDb->connect_errno === 0) {
     $probeDb->query("SET SESSION sql_mode = ''");
@@ -562,7 +597,7 @@ if ($probeDb->connect_errno === 0) {
 check("denied ALTER throws the catchable exception the helper handles", $denied === true);
 check("narrow column survives a denied widening (md5 mode)",
     (int) row_scalar($db, "SELECT CHARACTER_MAXIMUM_LENGTH FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'efiction_probe_authors' AND COLUMN_NAME = 'password'") === 40);
-$db->query("DROP USER IF EXISTS 'efnoalter'@'%'");
+$db->query("DROP USER IF EXISTS '$probeUser'@'%'");
 $db->query("DROP TABLE IF EXISTS efiction_probe_authors");
 $db->query("SET SESSION sql_mode = '" . $oldMode . "'");
 

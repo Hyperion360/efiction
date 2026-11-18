@@ -80,7 +80,7 @@ function ef_review_safe_html($html) {
 	$allowed = array_intersect(array_map('strtolower', $configured[1]), explode(' ',
 		'a abbr acronym b bdi bdo big blockquote br caption center cite code col colgroup dd del div dl dt em font h1 h2 h3 h4 h5 h6 hr i img ins kbd li mark ol p pre q rp rt ruby s samp small span strike strong sub sup table tbody td tfoot th thead tr tt u ul var wbr'));
 	$parts = preg_split('~(<(?:[^>\x22\x27]|\x22[^\x22]*\x22|\x27[^\x27]*\x27)*>)~s', (string)$html, -1, PREG_SPLIT_DELIM_CAPTURE);
-	$out = ''; $stack = array();
+	$out = ''; $stack = array(); $open = array();
 	$close = function() use (&$stack) { $s = ''; foreach(array_reverse($stack) as $t) $s .= '</'.$t[0].'>'; return $s; };
 	foreach($parts as $part) {
 		if($part === '') continue;
@@ -88,12 +88,18 @@ function ef_review_safe_html($html) {
 			$tag = strtolower($m[2]);
 			if(!in_array($tag, $allowed, true)) continue;
 			if($m[1]) {
-				if(in_array($tag, array_column($stack, 0), true)) {
-					do { $end = array_pop($stack); $out .= '</'.$end[0].'>'; } while($end[0] !== $tag);
+				// A counting map keeps close tags O(1); in_array over a
+				// materialized column of the stack made deep nesting quadratic
+				// (pentest T6 measurement: 29 s at 448 KB of nested tags).
+				if(!empty($open[$tag])) {
+					do { $end = array_pop($stack); $open[$end[0]]--; $out .= '</'.$end[0].'>'; } while($end[0] !== $tag);
 				}
 			} else {
 				$start = ef_review_tag($tag, $m[3]); $out .= $start;
-				if(!in_array($tag, array('br','hr','img','col','wbr'), true)) $stack[] = array($tag, $start);
+				if(!in_array($tag, array('br','hr','img','col','wbr'), true)) {
+					$stack[] = array($tag, $start);
+					$open[$tag] = isset($open[$tag]) ? $open[$tag] + 1 : 1;
+				}
 			}
 			continue;
 		}

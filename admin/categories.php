@@ -78,7 +78,7 @@ function relevelcategory($cat, $leveldown) {
 			dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = (displayorder - '1') WHERE displayorder > '$cat[displayorder]' AND parentcatid = '$cat[parentcatid]'");
 			dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_categories WHERE catid = '$catid'");
 			dbquery("DELETE FROM ".TABLEPREFIX."fanfiction_categories WHERE parentcatid = '$catid'");
-			$stories = dbquery("SELECT title,sid, catid FROM ".TABLEPREFIX."fanfiction_stories WHERE FIND_IN_SET(catid, '$catid')");
+			$stories = dbquery("SELECT title,sid, catid FROM ".TABLEPREFIX."fanfiction_stories WHERE FIND_IN_SET('$catid', catid)");
 			while($story = dbassoc($stories)) {
 				$cats = explode(",", $story[catid]);
 				if(count($cats) == 1) $newcat = "-1";
@@ -127,9 +127,11 @@ function relevelcategory($cat, $leveldown) {
 		if($parentcatid != -1) 	{
 			$parentquery = dbquery("SELECT leveldown FROM ".TABLEPREFIX."fanfiction_categories WHERE catid = '$parentcatid'");
 			$parentresult = dbassoc($parentquery);
-			$leveldown = $parentresult['leveldown'] + 1;
+			// A forged or stale parent id must not attach the category to a
+			// ghost parent with a fabricated leveldown (pentest T5).
+			if(!$parentresult || !isset($parentresult['leveldown'])) $parentcatid = -1;
 		}
-		else $leveldown = 0;
+		$leveldown = ($parentcatid != -1 ? $parentresult['leveldown'] + 1 : 0);
 		$locked = (isset($_POST['locked']) && $_POST['locked'] == "on" ? "1" : "0");
 
 		$displayorder = $orderafter + 1;
@@ -140,23 +142,30 @@ function relevelcategory($cat, $leveldown) {
 		else {
 			$oldinfo = dbquery("SELECT displayorder, parentcatid, leveldown FROM ".TABLEPREFIX."fanfiction_categories WHERE catid = '$cat_id' LIMIT 1");
 			list($oldorder, $oldparent, $oldleveldown) = dbrow($oldinfo);
-			$catresult = "UPDATE ".TABLEPREFIX."fanfiction_categories SET category = '$categoryname', description = '$description', locked = '$locked', parentcatid = '$parentcatid', image = '$image', leveldown = '$leveldown', displayorder = '$displayorder' WHERE catid = '$catid'";
-			if($oldparent == $parentcatid) {
-				if($oldorder && $oldorder < $displayorder) {
-					dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = displayorder - 1 WHERE displayorder > $oldorder AND displayorder < $displayorder");
-					dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = $displayorder - 1 WHERE catid = '$cat_id'");
+			// The edit bookkeeping keys on the GET id while the UPDATE keys on
+			// the POST id; on a mismatch nothing may shift - refuse the move
+			// (pentest T5), leaving the sibling groups untouched.
+			$movevalid = ($catid > 0 && $cat_id > 0 && $catid === $cat_id);
+			if($movevalid) {
+				$catresult = "UPDATE ".TABLEPREFIX."fanfiction_categories SET category = '$categoryname', description = '$description', locked = '$locked', parentcatid = '$parentcatid', image = '$image', leveldown = '$leveldown', displayorder = '$displayorder' WHERE catid = '$catid'";
+				if($oldparent == $parentcatid) {
+					if($oldorder && $oldorder < $displayorder) {
+						dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = displayorder - 1 WHERE displayorder > $oldorder AND displayorder < $displayorder AND parentcatid = '$oldparent'");
+						dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = $displayorder - 1 WHERE catid = '$cat_id'");
+					}
+					if($oldorder > $displayorder) {
+						dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = displayorder + 1 WHERE displayorder >= $displayorder AND displayorder < $oldorder AND parentcatid = '$oldparent'");
+						dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = $displayorder WHERE catid = '$cat_id'");
+					}
 				}
-				if($oldorder > $displayorder) {
-					dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = displayorder + 1 WHERE displayorder >= $displayorder AND displayorder < $oldorder");
-					dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = $displayorder WHERE catid = '$cat_id'");
+				else {
+					if($oldleveldown != $leveldown) relevelcategory($cat_id, $leveldown);
+					dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = displayorder -1 WHERE displayorder > $oldorder AND parentcatid = '$oldparent'");
+					dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = displayorder + 1 WHERE displayorder > '$orderafter' AND parentcatid = '$parentcatid'");
 				}
+				$success = dbquery($catresult);
 			}
-			else {
-				if($oldleveldown != $leveldown) relevelcategory($cat_id, $leveldown);
-				dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = displayorder -1 WHERE displayorder > $oldorder AND parentcatid = '$oldparent'");
-				dbquery("UPDATE ".TABLEPREFIX."fanfiction_categories SET displayorder = displayorder + 1 WHERE displayorder > '$orderafter' AND parentcatid = '$parentcatid'");
-			}
-			$success = dbquery($catresult);
+			else $output .= write_error(_ERROR);
 		}
 		$selectA = "SELECT category, catid FROM ".TABLEPREFIX."fanfiction_categories WHERE parentcatid = -1 ORDER BY displayorder";
 		$resultA = dbquery($selectA);

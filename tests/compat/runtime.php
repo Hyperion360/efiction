@@ -190,6 +190,10 @@ check('category description re-escapes entity-decoded text',
 check('category description keeps safe configured markup and balances tags',
     strpos(ef_category_description('<b>bold</b><i>italic'), '<b>bold</b><i>italic</i>') !== false
         && strpos(ef_category_description('<img src="https://x/i.png" alt="p">'), '<img src="https://x/i.png" alt="p">') !== false);
+check('category description balances deep nesting exactly (stack counter, not the quadratic scan)',
+    ef_category_description(str_repeat('<b>', 50) . 'deep' . str_repeat('</b>', 50))
+        === str_repeat('<b>', 50) . 'deep' . str_repeat('</b>', 50)
+        && ef_category_description('<b><i>x</b>y</i>') === '<b><i>x</i></b>y');
 $admCatSrc = file_get_contents($root . '/admin/categories.php');
 check('admin categories stores name/description/image through the policy, image never raw',
     strpos($admCatSrc, 'escapestring(ef_category_name(') !== false
@@ -206,6 +210,13 @@ check('admin category statements carry no raw request interpolation',
         && strpos($admCatSrc, "'\$_GET[cat]'") === false
         && strpos($admCatSrc, "\$_GET['cat'].\"'") === false
         && strpos($admCatSrc, "relevelcategory(\$_GET['cat']") === false);
+check('admin category edit refuses id mismatches and ghost parents, scopes shifts',
+    strpos($admCatSrc, "\$movevalid = (\$catid > 0 && \$cat_id > 0 && \$catid === \$cat_id);") !== false
+        && strpos($admCatSrc, "if(!\$parentresult || !isset(\$parentresult['leveldown'])) \$parentcatid = -1;") !== false
+        && strpos($admCatSrc, "displayorder < \$displayorder AND parentcatid = '\$oldparent'") !== false
+        && strpos($admCatSrc, "displayorder < \$oldorder AND parentcatid = '\$oldparent'") !== false
+        && strpos($admCatSrc, "FIND_IN_SET('\$catid', catid)") !== false
+        && strpos($admCatSrc, "FIND_IN_SET(catid, '\$catid')") === false);
 $brwSrc = file_get_contents($root . '/includes/browsecategories.php');
 check('browsecategories twin endpoint mirrors the 3.5.88 categorylist treatment',
     strpos($brwSrc, "header('X-Content-Type-Options: nosniff')") !== false

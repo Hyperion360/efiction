@@ -185,6 +185,12 @@ check('category description drops script tags even when allowed_tags permits the
 check('category description drops event handlers and javascript: links',
     strpos(ef_category_description('<img src="https://x/i.png" onerror="alert(1)">'), 'onerror') === false
         && strpos(ef_category_description('<a href="javascript:alert(1)">c</a>'), 'javascript:') === false);
+check('category description keeps mailto and safe style, drops expression style',
+    ($GLOBALS['allowed_tags'] = '<b><i><img><a><span>') !== false
+        && strpos(ef_category_description('<a href="mailto:x@y.z">m</a>'), 'mailto:x@y.z') !== false
+        && strpos(ef_category_description('<span style="color:red">s</span>'), 'color:red') !== false
+        && strpos(ef_category_description('<span style="width:expression(alert(1))">s</span>'), 'expression') === false
+        && ($GLOBALS['allowed_tags'] = '<b><i><img><script><a>') !== false);
 check('category description re-escapes entity-decoded text',
     ef_category_description('&lt;b&gt;') === '&lt;b&gt;');
 check('category description keeps safe configured markup and balances tags',

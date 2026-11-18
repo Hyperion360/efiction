@@ -13,7 +13,7 @@ $darkgray = imagecolorallocate($image, 0x50, 0x50, 0x50);
 $black = imagecolorallocate($image, 0x00, 0x00, 0x00);
 
 
-srand((double)microtime()*1000000);
+srand((float)microtime()*1000000);
 unset($digit, $cnum);
 
 

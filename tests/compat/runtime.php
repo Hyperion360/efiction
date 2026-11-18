@@ -141,9 +141,15 @@ check('fulltext search is EXISTS over validated chapter text',
         && strpos($searchSrc, 'in_array($searchtype, array("title", "summary", "penname", "advanced", "fulltext"), true)') !== false);
 $catSrc = file_get_contents($root . '/includes/categorylist.php');
 $charSrc = file_get_contents($root . '/includes/characterlist.php');
-check('characterlist validates and escapes the element parameter',
-    strpos($charSrc, "preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*$/', \$_GET['element'])") !== false
-        && strpos($charSrc, 'addslashes($_GET') !== false);
+check('characterlist mirrors the endpoint treatment and escapes the element parameter',
+    strpos($charSrc, "preg_match('/^[A-Za-z_][A-Za-z0-9_.-]*\$/D', \$_GET['element'])") !== false
+        && strpos($charSrc, 'addslashes($_GET') !== false
+        && strpos($charSrc, "escapestring(\$sitekey)") !== false
+        && strpos($charSrc, "preg_match('/^[A-Za-z0-9_-]+\$/D', \$settings['language'])") !== false
+        && strpos($charSrc, "\$action = '';") !== false
+        && strpos($charSrc, "header('X-Content-Type-Options: nosniff')") !== false
+        && strpos($charSrc, 'Content-Type: text/javascript') !== false
+        && strpos($charSrc, 'urlencode(str_replace($find') !== false);
 
 check('categorylist validates the element parameter and JSON-encodes it (3.5.88 port)',
     strpos($catSrc, "preg_match('/^(?:[A-Za-z_][A-Za-z0-9_.-]*|[0-9]+)\$/D', \$_GET['element'])") !== false
@@ -239,10 +245,11 @@ check('browsecategories twin endpoint mirrors the 3.5.88 categorylist treatment'
         && strpos($brwSrc, "\$action = '';") !== false
         && strpos($brwSrc, "preg_match('/^[A-Za-z0-9_-]+\$/D', \$settings['language'])") !== false);
 $pgsSrc = file_get_contents($root . '/includes/pagesetup.php');
-check('pagesetup global category and character lists render through the policy',
+check('pagesetup global category, character and class lists render through the policy',
     strpos($pgsSrc, "ef_category_label(\$cat['category'])") !== false
         && strpos($pgsSrc, 'stripslashes($cat[\'category\'])') === false
         && strpos($pgsSrc, "ef_category_h(ef_category_name(stripslashes(\$char['charname'])))") !== false
+        && strpos($pgsSrc, "ef_category_h(ef_category_name(stripslashes(\$class['class_name'])))") !== false
         && strpos($pgsSrc, 'category_helpers.php') !== false);
 check('category admin delete path uses array_diff',
     strpos($admCatSrc, 'array_diff($cats, array($catid))') !== false

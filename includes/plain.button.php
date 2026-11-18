@@ -11,7 +11,7 @@ $white    = imagecolorallocate($image, 0xFF, 0xFF, 0xFF);
 $gray    = imagecolorallocate($image, 0xC0, 0xC0, 0xC0);
 $darkgray = imagecolorallocate($image, 0x50, 0x50, 0x50);
 
-srand((double)microtime()*1000000);
+srand((float)microtime()*1000000);
 unset($digit, $cnum);
 for ($i = 0; $i < 30; $i++) {
   $x1 = rand(0,120);

@@ -49,7 +49,10 @@ while($char = dbassoc($result)) {
 $classlist = array( );
 $classresults = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_classes ORDER BY class_name");
 while($class = dbassoc($classresults)) {
-	$classlist[$class['class_id']] = array("type" => $class['class_type'], "name" => stripslashes($class['class_name']));
+	// Maintenance fork (3.5.88 port review): classification names render into
+	// the same guest-facing anchors as category and character names, so they
+	// pass the render policy too.
+	$classlist[$class['class_id']] = array("type" => $class['class_type'], "name" => ef_category_h(ef_category_name(stripslashes($class['class_name']))));
 }
 $classtypelist = array( );
 $classtyperesults = dbquery("SELECT * FROM ".TABLEPREFIX."fanfiction_classtypes ORDER BY classtype_name");
